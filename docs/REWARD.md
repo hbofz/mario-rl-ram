@@ -36,6 +36,8 @@ Each agent decision is repeated for 4 emulator frames by default, then the smart
 
 The wrapper also adds an `info["smart_reward"]` dictionary so we can inspect component-level rewards during debugging.
 
+Training uses single-life episodes by default. When Mario loses a life, the episode ends immediately, which gives PPO cleaner feedback than waiting until every life is gone.
+
 ## Modes
 
 ```bash

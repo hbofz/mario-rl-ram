@@ -26,13 +26,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ent-coef", type=float, default=0.01)
     parser.add_argument("--clip-range", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", default="auto")
+    parser.add_argument("--device", default="cpu")
     parser.add_argument("--run-name", default="ppo-ram-full-controller")
     parser.add_argument("--model-dir", default="models")
     parser.add_argument("--log-dir", default="runs")
     parser.add_argument("--action-mode", default="all", choices=["all", "discrete", "multidiscrete"])
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
+    parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--checkpoint-freq", type=int, default=250_000)
     return parser.parse_args()
 
@@ -46,6 +47,7 @@ def make_env_factory(args: argparse.Namespace, rank: int):
             action_repeat=args.action_repeat,
             render_mode=None,
             monitor=False,
+            single_life=args.single_life,
         )
         env.reset(seed=args.seed + rank)
         return env

@@ -12,6 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-mode", default="all", choices=["all", "discrete", "multidiscrete"])
     parser.add_argument("--reward-mode", default="base", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
+    parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args()
 
 
@@ -24,6 +25,7 @@ def main() -> None:
             reward_mode=args.reward_mode,
             action_repeat=args.action_repeat,
             render_mode=None,
+            single_life=args.single_life,
         )
     except FileNotFoundError as exc:
         raise SystemExit(

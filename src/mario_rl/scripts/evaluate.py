@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-mode", default="all", choices=["all", "discrete", "multidiscrete"])
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
+    parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--deterministic", action="store_true", default=True)
     return parser.parse_args()
 
@@ -34,6 +35,7 @@ def main() -> None:
         action_repeat=args.action_repeat,
         render_mode=render_mode,
         monitor=False,
+        single_life=args.single_life,
     )
 
     if args.video_dir:

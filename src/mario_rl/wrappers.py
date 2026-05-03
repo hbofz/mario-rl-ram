@@ -49,6 +49,29 @@ class ActionRepeat(gym.Wrapper):
         return last_obs, total_reward, terminated, truncated, last_info
 
 
+class SingleLifeEpisode(gym.Wrapper):
+    """End an episode immediately when Mario loses a life."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self._last_lives: int | None = None
+
+    def reset(self, **kwargs):
+        self._last_lives = None
+        return self.env.reset(**kwargs)
+
+    def step(self, action: Any):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if "lives" in info:
+            lives = int(info["lives"])
+            if self._last_lives is not None and lives < self._last_lives:
+                terminated = True
+                info = dict(info)
+                info["single_life_done"] = True
+            self._last_lives = lives
+        return obs, reward, terminated, truncated, info
+
+
 class InfoRewardShaping(gym.Wrapper):
     """Light shaping from Stable-Retro info variables when they are present."""
 
@@ -121,18 +144,19 @@ class SmartMarioReward(gym.Wrapper):
     def __init__(
         self,
         env: gym.Env,
-        progress_scale: float = 1.0,
-        backtrack_scale: float = 0.25,
-        score_scale: float = 0.02,
-        coin_bonus: float = 5.0,
-        checkpoint_bonus: float = 25.0,
+        progress_scale: float = 0.25,
+        backtrack_scale: float = 0.05,
+        score_scale: float = 0.001,
+        coin_bonus: float = 1.0,
+        checkpoint_bonus: float = 5.0,
         checkpoint_width: int = 128,
-        level_bonus: float = 250.0,
-        death_penalty: float = 200.0,
-        life_loss_penalty: float = 100.0,
+        level_bonus: float = 50.0,
+        death_penalty: float = 50.0,
+        life_loss_penalty: float = 25.0,
         time_penalty: float = 0.01,
-        stall_penalty: float = 0.05,
+        stall_penalty: float = 0.02,
         stall_window: int = 30,
+        max_stall_penalty: float = 0.5,
     ):
         super().__init__(env)
         self.progress_scale = progress_scale
@@ -147,6 +171,7 @@ class SmartMarioReward(gym.Wrapper):
         self.time_penalty = time_penalty
         self.stall_penalty = stall_penalty
         self.stall_window = stall_window
+        self.max_stall_penalty = max_stall_penalty
         self._last_x: float | None = None
         self._max_x = 0.0
         self._next_checkpoint = float(checkpoint_width)
@@ -205,9 +230,12 @@ class SmartMarioReward(gym.Wrapper):
         components["life"] = self._life_reward(info)
 
         if self._stall_steps >= self.stall_window:
-            components["stall"] = -self.stall_penalty * (self._stall_steps - self.stall_window + 1)
+            components["stall"] = -min(
+                self.max_stall_penalty,
+                self.stall_penalty * (self._stall_steps - self.stall_window + 1),
+            )
 
-        if terminated and self._life_like(info) <= -1:
+        if terminated and (self._life_like(info) <= -1 or bool(info.get("single_life_done", False))):
             components["death"] = -self.death_penalty
 
         shaped = sum(components.values())

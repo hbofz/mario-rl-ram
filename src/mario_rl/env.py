@@ -6,7 +6,7 @@ import gymnasium as gym
 import stable_retro as retro
 from stable_baselines3.common.monitor import Monitor
 
-from mario_rl.wrappers import ActionRepeat, InfoRewardShaping, RamFloat32, SmartMarioReward
+from mario_rl.wrappers import ActionRepeat, InfoRewardShaping, RamFloat32, SingleLifeEpisode, SmartMarioReward
 
 
 ActionMode = Literal["all", "discrete", "multidiscrete"]
@@ -21,6 +21,7 @@ def make_mario_env(
     render_mode: str | None = None,
     record: str | bool = False,
     monitor: bool = True,
+    single_life: bool = False,
 ) -> gym.Env:
     """Create a RAM-observation Mario environment."""
 
@@ -38,6 +39,9 @@ def make_mario_env(
         env = InfoRewardShaping(env)
     elif reward_mode == "smart":
         env = SmartMarioReward(env)
+
+    if single_life:
+        env = SingleLifeEpisode(env)
 
     if monitor:
         env = Monitor(env)

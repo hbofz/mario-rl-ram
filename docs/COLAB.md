@@ -55,10 +55,10 @@ mario-train \
   --batch-size 2048 \
   --reward-mode smart \
   --run-name ppo-ram-full-controller \
-  --device auto
+  --device cpu
 ```
 
-If CPU usage is high but GPU usage is low, that is normal for RAM PPO. Increase `--n-envs` until env stepping stops improving or Colab RAM gets tight.
+For RAM observations with an MLP policy, PPO often trains faster on CPU than GPU because there is no CNN workload. The A100/H100 still helps if you later add pixel observations, but this RAM baseline should use `--device cpu`.
 
 ## 6. Save To Drive
 
@@ -87,7 +87,7 @@ mario-train \
   --batch-size 1024 \
   --reward-mode smart \
   --run-name recurrent-ppo-ram-full-controller \
-  --device auto
+  --device cpu
 ```
 
 ## 8. Make Videos

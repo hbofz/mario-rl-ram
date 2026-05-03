@@ -49,7 +49,7 @@ git clone https://github.com/hbofz/mario-rl-ram.git
 cd mario-rl-ram
 pip install -e .
 python -m stable_retro.import /content/drive/MyDrive/mario_roms/
-mario-train --timesteps 5000000 --n-envs 16 --run-name ppo-ram-full-controller --device auto
+mario-train --timesteps 5000000 --n-envs 16 --run-name ppo-ram-full-controller --device cpu
 ```
 
 ## Evaluation
@@ -66,6 +66,7 @@ mario-eval --model models/ppo-ram-full-controller/final_model.zip --episodes 3 -
 - Observation: RAM
 - Action space: full NES controller via `MultiBinary`
 - Reward mode: `smart` by default for training
+- Episode mode: single-life episodes by default for training
 - Algorithm: PPO with `MlpPolicy`
 - Stretch: RecurrentPPO with `MlpLstmPolicy`
 

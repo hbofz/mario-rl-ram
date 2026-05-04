@@ -29,6 +29,7 @@ Each agent decision is repeated for 4 emulator frames by default, then the smart
 | `score` | Rewards score increases from enemies, blocks, powerups, and flag scoring. |
 | `coin` | Rewards coin collection, including coin counter wraparound. |
 | `level` | Rewards a level variable change when the integration exposes one. |
+| `finish` | Gives large one-time bonuses near the end of the level and the approximate flag zone. |
 | `life` | Penalizes losing lives. |
 | `death` | Adds a larger penalty when an episode terminates after all lives are gone. |
 | `time` | Adds a small per-decision time cost so standing still is not free. |

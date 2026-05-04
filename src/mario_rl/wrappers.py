@@ -200,6 +200,10 @@ class SmartMarioReward(gym.Wrapper):
         checkpoint_bonus: float = 5.0,
         checkpoint_width: int = 128,
         level_bonus: float = 50.0,
+        finish_zone_x: float = 3100.0,
+        finish_zone_bonus: float = 100.0,
+        flag_zone_x: float = 3300.0,
+        flag_bonus: float = 500.0,
         death_penalty: float = 50.0,
         life_loss_penalty: float = 25.0,
         time_penalty: float = 0.01,
@@ -222,6 +226,10 @@ class SmartMarioReward(gym.Wrapper):
         self.checkpoint_bonus = checkpoint_bonus
         self.checkpoint_width = checkpoint_width
         self.level_bonus = level_bonus
+        self.finish_zone_x = finish_zone_x
+        self.finish_zone_bonus = finish_zone_bonus
+        self.flag_zone_x = flag_zone_x
+        self.flag_bonus = flag_bonus
         self.death_penalty = death_penalty
         self.life_loss_penalty = life_loss_penalty
         self.time_penalty = time_penalty
@@ -244,6 +252,8 @@ class SmartMarioReward(gym.Wrapper):
         self._last_level: tuple[int, int] | None = None
         self._stall_steps = 0
         self._jump_streak = 0
+        self._finish_zone_awarded = False
+        self._flag_zone_awarded = False
 
     def reset(self, **kwargs):
         self._last_x = None
@@ -255,6 +265,8 @@ class SmartMarioReward(gym.Wrapper):
         self._last_level = None
         self._stall_steps = 0
         self._jump_streak = 0
+        self._finish_zone_awarded = False
+        self._flag_zone_awarded = False
         return self.env.reset(**kwargs)
 
     def step(self, action: Any):
@@ -266,6 +278,7 @@ class SmartMarioReward(gym.Wrapper):
             "score": 0.0,
             "coin": 0.0,
             "level": 0.0,
+            "finish": 0.0,
             "life": 0.0,
             "time": -self.time_penalty,
             "stall": 0.0,
@@ -288,6 +301,7 @@ class SmartMarioReward(gym.Wrapper):
             while self._max_x >= self._next_checkpoint:
                 components["checkpoint"] += self.checkpoint_bonus
                 self._next_checkpoint += self.checkpoint_width
+            components["finish"] = self._finish_reward()
             self._last_x = x_pos
 
         components["score"] = self._score_reward(info)
@@ -362,6 +376,16 @@ class SmartMarioReward(gym.Wrapper):
             return int(info.get("lives", 0))
         except (TypeError, ValueError):
             return 0
+
+    def _finish_reward(self) -> float:
+        reward = 0.0
+        if not self._finish_zone_awarded and self._max_x >= self.finish_zone_x:
+            reward += self.finish_zone_bonus
+            self._finish_zone_awarded = True
+        if not self._flag_zone_awarded and self._max_x >= self.flag_zone_x:
+            reward += self.flag_bonus
+            self._flag_zone_awarded = True
+        return reward
 
     def _action_reward(self, info: dict[str, Any]) -> float:
         buttons = set(info.get("buttons_pressed", ()))

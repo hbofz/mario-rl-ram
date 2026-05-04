@@ -52,6 +52,10 @@ python -m stable_retro.import /content/drive/MyDrive/mario_roms/
 mario-train --timesteps 10000000 --n-envs 16 --action-mode mario --run-name ppo-ram-mario-actions-v4 --device cpu
 ```
 
+## PC Training
+
+See [docs/PC_SETUP.md](docs/PC_SETUP.md) for Windows, WSL2 Ubuntu, and Linux setup. WSL2 is recommended on Windows.
+
 ## Evaluation
 
 Render a trained checkpoint:

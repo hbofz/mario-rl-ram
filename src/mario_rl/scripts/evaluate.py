@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--deterministic", action="store_true", default=True)
+    parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
 
@@ -58,6 +58,8 @@ def main() -> None:
         episode_reward = 0.0
         lstm_states = None
         episode_start = True
+        max_x = 0.0
+        final_info = {}
 
         while not done:
             if args.algo == "recurrent-ppo":
@@ -74,10 +76,27 @@ def main() -> None:
             done = terminated or truncated
             episode_start = done
             episode_reward += float(reward)
+            final_info = info
+            max_x = max(max_x, _x_position(info) or 0.0)
 
-        print(f"episode={episode + 1} reward={episode_reward:.2f} info={info}")
+        print(
+            f"episode={episode + 1} "
+            f"reward={episode_reward:.2f} "
+            f"max_x={max_x:.0f} "
+            f"score={final_info.get('score')} "
+            f"coins={final_info.get('coins')} "
+            f"time={final_info.get('time')} "
+            f"lives={final_info.get('lives')} "
+            f"info={final_info}"
+        )
 
     env.close()
+
+
+def _x_position(info: dict) -> float | None:
+    if "xscrollLo" in info and "xscrollHi" in info:
+        return float(info["xscrollLo"]) + 256.0 * float(info["xscrollHi"])
+    return None
 
 
 if __name__ == "__main__":

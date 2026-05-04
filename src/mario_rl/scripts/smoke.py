@@ -9,7 +9,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke-test the Mario RAM environment.")
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
     parser.add_argument("--steps", type=int, default=300)
-    parser.add_argument("--action-mode", default="all", choices=["all", "discrete", "multidiscrete"])
+    parser.add_argument("--action-mode", default="mario", choices=["all", "discrete", "multidiscrete", "mario"])
     parser.add_argument("--reward-mode", default="base", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)

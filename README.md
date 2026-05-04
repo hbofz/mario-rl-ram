@@ -49,7 +49,7 @@ git clone https://github.com/hbofz/mario-rl-ram.git
 cd mario-rl-ram
 pip install -e .
 python -m stable_retro.import /content/drive/MyDrive/mario_roms/
-mario-train --timesteps 5000000 --n-envs 16 --run-name ppo-ram-full-controller --device cpu
+mario-train --timesteps 10000000 --n-envs 16 --action-mode mario --run-name ppo-ram-mario-actions-v4 --device cpu
 ```
 
 ## Evaluation
@@ -57,17 +57,17 @@ mario-train --timesteps 5000000 --n-envs 16 --run-name ppo-ram-full-controller -
 Render a trained checkpoint:
 
 ```bash
-mario-eval --model models/ppo-ram-full-controller/final_model.zip --episodes 3 --video-dir videos
+mario-eval --model models/ppo-ram-mario-actions-v4/final_model.zip --episodes 3 --video-dir videos
 ```
 
 ## Current Baseline
 
 - Environment: `SuperMarioBros-Nes-v0`
 - Observation: RAM
-- Action space: full NES controller via `MultiBinary`
+- Action space: curated Mario actions by default for training
 - Reward mode: `smart` by default for training
 - Episode mode: single-life episodes by default for training
 - Algorithm: PPO with `MlpPolicy`
 - Stretch: RecurrentPPO with `MlpLstmPolicy`
 
-Reward details are in [docs/REWARD.md](docs/REWARD.md).
+Action details are in [docs/ACTIONS.md](docs/ACTIONS.md), and reward details are in [docs/REWARD.md](docs/REWARD.md).

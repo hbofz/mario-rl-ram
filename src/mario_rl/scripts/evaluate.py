@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
     parser.add_argument("--video-dir", default=None)
-    parser.add_argument("--action-mode", default="all", choices=["all", "discrete", "multidiscrete"])
+    parser.add_argument("--action-mode", default="mario", choices=["all", "discrete", "multidiscrete", "mario"])
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)

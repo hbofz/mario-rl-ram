@@ -38,6 +38,8 @@ The wrapper also adds an `info["smart_reward"]` dictionary so we can inspect com
 
 Training uses single-life episodes by default. When Mario loses a life, the episode ends immediately, which gives PPO cleaner feedback than waiting until every life is gone.
 
+The recommended `mario` action mode also adds a small action-quality term. It lightly penalizes jump spam, neutral jumps, left movement, and impossible/bad buttons. Forward progress is still worth much more than the action penalty, so useful jumps remain profitable.
+
 ## Modes
 
 ```bash

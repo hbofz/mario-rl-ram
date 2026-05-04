@@ -6,10 +6,17 @@ import gymnasium as gym
 import stable_retro as retro
 from stable_baselines3.common.monitor import Monitor
 
-from mario_rl.wrappers import ActionRepeat, InfoRewardShaping, RamFloat32, SingleLifeEpisode, SmartMarioReward
+from mario_rl.wrappers import (
+    ActionRepeat,
+    InfoRewardShaping,
+    MarioActionSpace,
+    RamFloat32,
+    SingleLifeEpisode,
+    SmartMarioReward,
+)
 
 
-ActionMode = Literal["all", "discrete", "multidiscrete"]
+ActionMode = Literal["all", "discrete", "multidiscrete", "mario"]
 RewardMode = Literal["base", "shaped", "smart"]
 
 
@@ -28,10 +35,12 @@ def make_mario_env(
     env = retro.make(
         game=game,
         obs_type=retro.Observations.RAM,
-        use_restricted_actions=_action_mode(action_mode),
+        use_restricted_actions=_retro_action_mode(action_mode),
         render_mode=render_mode,
         record=record,
     )
+    if action_mode == "mario":
+        env = MarioActionSpace(env)
     env = RamFloat32(env)
     env = ActionRepeat(env, repeat=action_repeat)
 
@@ -49,7 +58,9 @@ def make_mario_env(
     return env
 
 
-def _action_mode(action_mode: ActionMode):
+def _retro_action_mode(action_mode: ActionMode):
+    if action_mode == "mario":
+        return retro.Actions.ALL
     if action_mode == "all":
         return retro.Actions.ALL
     if action_mode == "discrete":

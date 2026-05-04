@@ -8,6 +8,55 @@ import numpy as np
 from gymnasium import spaces
 
 
+MARIO_ACTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("NOOP", ()),
+    ("RIGHT", ("RIGHT",)),
+    ("RIGHT_RUN", ("RIGHT", "B")),
+    ("RIGHT_JUMP", ("RIGHT", "A")),
+    ("RIGHT_RUN_JUMP", ("RIGHT", "B", "A")),
+    ("JUMP", ("A",)),
+    ("RUN_JUMP", ("B", "A")),
+    ("LEFT", ("LEFT",)),
+    ("LEFT_JUMP", ("LEFT", "A")),
+    ("DOWN", ("DOWN",)),
+    ("RIGHT_DOWN", ("RIGHT", "DOWN")),
+)
+
+
+class MarioActionSpace(gym.Wrapper):
+    """Curated discrete Mario actions over the full NES button vector."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        buttons = getattr(env.unwrapped, "buttons", None)
+        if not buttons:
+            raise ValueError("MarioActionSpace requires an environment with NES button metadata.")
+        self.button_names = list(buttons)
+        self._button_index = {button: index for index, button in enumerate(self.button_names) if button}
+        self._actions = tuple((name, self._button_vector(buttons)) for name, buttons in MARIO_ACTIONS)
+        self.action_space = spaces.Discrete(len(self._actions))
+
+    @property
+    def action_meanings(self) -> tuple[str, ...]:
+        return tuple(name for name, _ in self._actions)
+
+    def step(self, action: Any):
+        action_index = int(action)
+        name, vector = self._actions[action_index]
+        obs, reward, terminated, truncated, info = self.env.step(vector)
+        info = dict(info)
+        info["action_index"] = action_index
+        info["action_name"] = name
+        info["buttons_pressed"] = tuple(self.button_names[i] for i, pressed in enumerate(vector) if pressed)
+        return obs, reward, terminated, truncated, info
+
+    def _button_vector(self, buttons: tuple[str, ...]) -> np.ndarray:
+        vector = np.zeros(len(self.button_names), dtype=np.int8)
+        for button in buttons:
+            vector[self._button_index[button]] = 1
+        return vector
+
+
 class RamFloat32(gym.ObservationWrapper):
     """Scale uint8 RAM observations to float32 in [0, 1]."""
 
@@ -157,6 +206,13 @@ class SmartMarioReward(gym.Wrapper):
         stall_penalty: float = 0.02,
         stall_window: int = 30,
         max_stall_penalty: float = 0.5,
+        jump_penalty: float = 0.03,
+        neutral_jump_penalty: float = 0.08,
+        repeated_jump_penalty: float = 0.04,
+        repeated_jump_window: int = 4,
+        max_repeated_jump_penalty: float = 0.5,
+        left_penalty: float = 0.02,
+        bad_button_penalty: float = 0.25,
     ):
         super().__init__(env)
         self.progress_scale = progress_scale
@@ -172,6 +228,13 @@ class SmartMarioReward(gym.Wrapper):
         self.stall_penalty = stall_penalty
         self.stall_window = stall_window
         self.max_stall_penalty = max_stall_penalty
+        self.jump_penalty = jump_penalty
+        self.neutral_jump_penalty = neutral_jump_penalty
+        self.repeated_jump_penalty = repeated_jump_penalty
+        self.repeated_jump_window = repeated_jump_window
+        self.max_repeated_jump_penalty = max_repeated_jump_penalty
+        self.left_penalty = left_penalty
+        self.bad_button_penalty = bad_button_penalty
         self._last_x: float | None = None
         self._max_x = 0.0
         self._next_checkpoint = float(checkpoint_width)
@@ -180,6 +243,7 @@ class SmartMarioReward(gym.Wrapper):
         self._last_lives: int | None = None
         self._last_level: tuple[int, int] | None = None
         self._stall_steps = 0
+        self._jump_streak = 0
 
     def reset(self, **kwargs):
         self._last_x = None
@@ -190,6 +254,7 @@ class SmartMarioReward(gym.Wrapper):
         self._last_lives = None
         self._last_level = None
         self._stall_steps = 0
+        self._jump_streak = 0
         return self.env.reset(**kwargs)
 
     def step(self, action: Any):
@@ -204,6 +269,7 @@ class SmartMarioReward(gym.Wrapper):
             "life": 0.0,
             "time": -self.time_penalty,
             "stall": 0.0,
+            "action": 0.0,
             "death": 0.0,
         }
 
@@ -228,6 +294,7 @@ class SmartMarioReward(gym.Wrapper):
         components["coin"] = self._coin_reward(info)
         components["level"] = self._level_reward(info)
         components["life"] = self._life_reward(info)
+        components["action"] = self._action_reward(info)
 
         if self._stall_steps >= self.stall_window:
             components["stall"] = -min(
@@ -295,3 +362,29 @@ class SmartMarioReward(gym.Wrapper):
             return int(info.get("lives", 0))
         except (TypeError, ValueError):
             return 0
+
+    def _action_reward(self, info: dict[str, Any]) -> float:
+        buttons = set(info.get("buttons_pressed", ()))
+        reward = 0.0
+
+        if "A" in buttons:
+            self._jump_streak += 1
+            reward -= self.jump_penalty
+            if "RIGHT" not in buttons:
+                reward -= self.neutral_jump_penalty
+            if self._jump_streak > self.repeated_jump_window:
+                reward -= min(
+                    self.max_repeated_jump_penalty,
+                    self.repeated_jump_penalty * (self._jump_streak - self.repeated_jump_window),
+                )
+        else:
+            self._jump_streak = 0
+
+        if "LEFT" in buttons:
+            reward -= self.left_penalty
+        if "LEFT" in buttons and "RIGHT" in buttons:
+            reward -= self.bad_button_penalty
+        if "START" in buttons or "SELECT" in buttons:
+            reward -= self.bad_button_penalty
+
+        return reward

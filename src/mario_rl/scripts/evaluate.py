@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default="auto")
     parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 

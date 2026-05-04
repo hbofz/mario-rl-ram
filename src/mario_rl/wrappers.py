@@ -187,7 +187,6 @@ class InfoRewardShaping(gym.Wrapper):
 
 class SmartMarioReward(gym.Wrapper):
     """Dense Mario reward that balances progress, skill events, and anti-stall pressure."""
-
     X_KEYS = InfoRewardShaping.X_KEYS
 
     def __init__(

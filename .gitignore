@@ -12,10 +12,3 @@ videos/
 *.pkl
 *.mp4
 *.bk2
-
-# Keep ROMs out of git.
-roms/
-*.nes
-*.sfc
-*.smc
-*.zip

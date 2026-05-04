@@ -35,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--checkpoint-freq", type=int, default=250_000)
+    parser.add_argument("--resume-from", default=None, help="Path to a saved SB3 checkpoint to continue training.")
     return parser.parse_args()
 
 
@@ -85,10 +86,20 @@ def main() -> None:
         policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256])),
     )
 
-    if args.algo == "ppo":
-        model = PPO("MlpPolicy", **common_kwargs)
+    model_cls = PPO if args.algo == "ppo" else RecurrentPPO
+    if args.resume_from:
+        print(f"Resuming from checkpoint: {args.resume_from}")
+        model = model_cls.load(
+            args.resume_from,
+            env=env,
+            device=args.device,
+            tensorboard_log=str(args.log_dir),
+            print_system_info=True,
+        )
+        print(f"Loaded checkpoint with num_timesteps={model.num_timesteps}")
     else:
-        model = RecurrentPPO("MlpLstmPolicy", **common_kwargs)
+        policy = "MlpPolicy" if args.algo == "ppo" else "MlpLstmPolicy"
+        model = model_cls(policy, **common_kwargs)
 
     checkpoint_freq = max(args.checkpoint_freq // args.n_envs, 1)
     checkpoint = CheckpointCallback(
@@ -103,6 +114,7 @@ def main() -> None:
         total_timesteps=args.timesteps,
         callback=checkpoint,
         tb_log_name=args.run_name,
+        reset_num_timesteps=not bool(args.resume_from),
         progress_bar=True,
     )
     model.save(run_model_dir / "final_model")

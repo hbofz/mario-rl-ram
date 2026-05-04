@@ -76,6 +76,28 @@ mario-train \
 
 ## 7. Recurrent Stretch Run
 
+## 7. Resume From A Checkpoint
+
+If Colab disconnects, resume from the newest checkpoint in Drive. For example, if your last checkpoint is `ppo_8500000_steps.zip` and the original goal was 10M steps, train for roughly 1.5M more:
+
+```bash
+mario-train \
+  --timesteps 1500000 \
+  --n-envs 16 \
+  --n-steps 512 \
+  --batch-size 2048 \
+  --reward-mode smart \
+  --run-name ppo-ram-full-controller-v2 \
+  --model-dir /content/drive/MyDrive/mario_rl/models \
+  --log-dir /content/drive/MyDrive/mario_rl/runs \
+  --resume-from /content/drive/MyDrive/mario_rl/models/ppo-ram-full-controller-v2/ppo_8500000_steps.zip \
+  --device cpu
+```
+
+The trainer keeps the checkpoint's timestep counter when resuming, so future checkpoint filenames continue from the loaded model's count.
+
+## 8. Recurrent Stretch Run
+
 After PPO works:
 
 ```bash
@@ -90,7 +112,7 @@ mario-train \
   --device cpu
 ```
 
-## 8. Make Videos
+## 9. Make Videos
 
 ```bash
 mario-eval \

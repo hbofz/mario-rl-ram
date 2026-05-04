@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from sb3_contrib import RecurrentPPO
@@ -36,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--checkpoint-freq", type=int, default=250_000)
     parser.add_argument("--resume-from", default=None, help="Path to a saved SB3 checkpoint to continue training.")
+    parser.add_argument("--auto-resume", action=argparse.BooleanOptionalAction, default=True, help="Automatically resume from the latest checkpoint in model-dir.")
     return parser.parse_args()
 
 
@@ -62,6 +64,17 @@ def main() -> None:
     run_log_dir = Path(args.log_dir) / args.run_name
     run_model_dir.mkdir(parents=True, exist_ok=True)
     run_log_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.auto_resume and not args.resume_from:
+        checkpoints = list(run_model_dir.glob("*.zip"))
+        if checkpoints:
+            def get_step(path: Path) -> int:
+                match = re.search(r"(\d+)_steps", path.name)
+                return int(match.group(1)) if match else -1
+            latest_checkpoint = max(checkpoints, key=get_step)
+            if get_step(latest_checkpoint) >= 0:
+                args.resume_from = str(latest_checkpoint)
+                print(f"Auto-resume found latest checkpoint: {args.resume_from}")
 
     env = SubprocVecEnv(
         [make_env_factory(args, rank) for rank in range(args.n_envs)],

@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--device", default="cpu")
     parser.add_argument("--deterministic", action="store_true", default=True)
     return parser.parse_args()
 
@@ -49,7 +50,7 @@ def main() -> None:
         )
 
     model_cls = PPO if args.algo == "ppo" else RecurrentPPO
-    model = model_cls.load(args.model, env=env)
+    model = model_cls.load(args.model, env=env, device=args.device)
 
     for episode in range(args.episodes):
         obs, _ = env.reset()

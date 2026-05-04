@@ -44,13 +44,13 @@ def make_mario_env(
     env = RamFloat32(env)
     env = ActionRepeat(env, repeat=action_repeat)
 
+    if single_life:
+        env = SingleLifeEpisode(env)
+
     if reward_mode == "shaped":
         env = InfoRewardShaping(env)
     elif reward_mode == "smart":
         env = SmartMarioReward(env)
-
-    if single_life:
-        env = SingleLifeEpisode(env)
 
     if monitor:
         env = Monitor(env)

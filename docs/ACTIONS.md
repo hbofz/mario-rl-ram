@@ -32,3 +32,21 @@ This maps a compact discrete action space onto intentional Mario controls:
 | 10 | `RIGHT_DOWN` | `RIGHT + DOWN` |
 
 This is not right-only mode. It keeps the core platforming moves while removing the controller noise that made jump-spam too easy to discover.
+
+## World 5-2 Secrets Profile
+
+World 5-2 has optional pipe/vine routes, so the default serious 5-2 run uses:
+
+```bash
+--action-mode mario-secrets
+```
+
+This preserves every `mario` action and adds:
+
+| Action | Buttons |
+|---|---|
+| `UP` | `UP` |
+| `RIGHT_UP` | `RIGHT + UP` |
+| `LEFT_UP` | `LEFT + UP` |
+
+Old checkpoints trained with `--action-mode mario` are still compatible with the original 11-action profile. Use `mario-secrets` only for new runs initialized with the expanded action space.

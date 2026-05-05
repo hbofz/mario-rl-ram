@@ -103,18 +103,23 @@ If native Windows fails while installing or importing `stable-retro`, use WSL2.
 
 ## Overnight Training Command
 
-Use this for the final v4 setup:
+Create or copy the 5-2 state first:
+
+```bash
+mario-smoke \
+  --state Level5-2 \
+  --custom-integration-path custom_integrations \
+  --expected-stage 5-2 \
+  --reward-mode stage-score \
+  --action-mode mario-secrets \
+  --single-stage
+```
+
+Then use this for the main World 5-2 run:
 
 ```bash
 mario-train \
   --timesteps 20000000 \
-  --n-envs 16 \
-  --n-steps 512 \
-  --batch-size 2048 \
-  --reward-mode smart \
-  --action-mode mario \
-  --action-repeat 4 \
-  --run-name ppo-ram-mario-actions-v4 \
   --model-dir models \
   --log-dir runs \
   --device cpu
@@ -172,11 +177,10 @@ Deterministic:
 
 ```bash
 mario-eval \
-  --model models/ppo-ram-mario-actions-v4/final_model.zip \
+  --model models/recurrent-ppo-ram-5-2-stage-score/final_model.zip \
+  --vecnormalize models/recurrent-ppo-ram-5-2-stage-score/vecnormalize.pkl \
   --episodes 5 \
   --video-dir videos/final-deterministic \
-  --reward-mode smart \
-  --action-mode mario \
   --device cpu
 ```
 
@@ -184,11 +188,10 @@ Stochastic, usually better for finding the strongest rollout:
 
 ```bash
 mario-eval \
-  --model models/ppo-ram-mario-actions-v4/final_model.zip \
+  --model models/recurrent-ppo-ram-5-2-stage-score/final_model.zip \
+  --vecnormalize models/recurrent-ppo-ram-5-2-stage-score/vecnormalize.pkl \
   --episodes 30 \
   --video-dir videos/final-stochastic \
-  --reward-mode smart \
-  --action-mode mario \
   --device cpu \
   --no-deterministic
 ```

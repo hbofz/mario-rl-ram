@@ -22,6 +22,8 @@ mario-doctor = "mario_rl.scripts.doctor:main"
 mario-smoke = "mario_rl.scripts.smoke:main"
 mario-train = "mario_rl.scripts.train_ppo:main"
 mario-eval = "mario_rl.scripts.evaluate:main"
+mario-capture-state = "mario_rl.scripts.capture_state:main"
+mario-manual-capture-state = "mario_rl.scripts.manual_capture_state:main"
 
 [build-system]
 requires = ["hatchling"]

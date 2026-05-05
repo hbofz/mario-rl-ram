@@ -60,3 +60,15 @@ Use the Stable-Retro reward plus light full-x progress shaping.
 ```
 
 Use the project reward above. This is the default for training.
+
+```bash
+--reward-mode stage-score
+```
+
+Use the World 5-2 reward profile. This is the default for the main 5-2 run. It gives a large bonus for `stage_clear_done`, rewards new max progress inside each route/area, adds capped score and coin rewards, gives a small route-transition bonus for pipe/vine/sub-area movement, and keeps time, stall, life-loss, death, and bad-button penalties. Unlike `smart`, it does not punish repeated jumping because underwater swimming can require repeated `A`.
+
+For 5-2, pair this with:
+
+```bash
+--single-stage --single-life --state Level5-2 --action-mode mario-secrets
+```

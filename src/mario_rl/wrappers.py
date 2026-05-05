@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import Any
+from typing import Any, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -22,18 +22,33 @@ MARIO_ACTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("RIGHT_DOWN", ("RIGHT", "DOWN")),
 )
 
+MARIO_SECRET_ACTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    *MARIO_ACTIONS,
+    ("UP", ("UP",)),
+    ("RIGHT_UP", ("RIGHT", "UP")),
+    ("LEFT_UP", ("LEFT", "UP")),
+)
+
+MarioActionProfile = Literal["mario", "mario-secrets"]
+
 
 class MarioActionSpace(gym.Wrapper):
     """Curated discrete Mario actions over the full NES button vector."""
 
-    def __init__(self, env: gym.Env):
+    def __init__(self, env: gym.Env, profile: MarioActionProfile = "mario"):
         super().__init__(env)
         buttons = getattr(env.unwrapped, "buttons", None)
         if not buttons:
             raise ValueError("MarioActionSpace requires an environment with NES button metadata.")
+        if profile == "mario":
+            actions = MARIO_ACTIONS
+        elif profile == "mario-secrets":
+            actions = MARIO_SECRET_ACTIONS
+        else:
+            raise ValueError(f"Unknown Mario action profile: {profile}")
         self.button_names = list(buttons)
         self._button_index = {button: index for index, button in enumerate(self.button_names) if button}
-        self._actions = tuple((name, self._button_vector(buttons)) for name, buttons in MARIO_ACTIONS)
+        self._actions = tuple((name, self._button_vector(buttons)) for name, buttons in actions)
         self.action_space = spaces.Discrete(len(self._actions))
 
     @property
@@ -119,6 +134,78 @@ class SingleLifeEpisode(gym.Wrapper):
                 info["single_life_done"] = True
             self._last_lives = lives
         return obs, reward, terminated, truncated, info
+
+
+class SingleStageEpisode(gym.Wrapper):
+    """End an episode when the level variables move away from the reset stage."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self._start_stage: tuple[int, int] | None = None
+
+    def reset(self, **kwargs):
+        self._start_stage = None
+        return self.env.reset(**kwargs)
+
+    def step(self, action: Any):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        stage = self._stage_from_info(info)
+        if stage is not None:
+            if self._start_stage is None:
+                self._start_stage = stage
+            elif stage != self._start_stage:
+                terminated = True
+                info = dict(info)
+                info["stage_clear_done"] = True
+                info["start_stage"] = self._start_stage
+                info["final_stage"] = stage
+        return obs, reward, terminated, truncated, info
+
+    @staticmethod
+    def _stage_from_info(info: dict[str, Any]) -> tuple[int, int] | None:
+        if "levelHi" not in info or "levelLo" not in info:
+            return None
+        try:
+            return int(info["levelHi"]), int(info["levelLo"])
+        except (TypeError, ValueError):
+            return None
+
+
+class ValidateInitialStage(gym.Wrapper):
+    """Fail early when a named savestate does not start on the expected world-stage."""
+
+    LEVEL_HI_ADDR = 1887
+    LEVEL_LO_ADDR = 1884
+
+    def __init__(self, env: gym.Env, expected_stage: tuple[int, int]):
+        super().__init__(env)
+        self.expected_stage = expected_stage
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        stage = self._stage_from_ram()
+        if stage != self.expected_stage:
+            expected = self._display_stage(self.expected_stage)
+            actual = self._display_stage(stage) if stage is not None else "unknown"
+            raise RuntimeError(
+                f"Expected initial stage {expected}, but savestate starts at {actual}. "
+                "Check --state and --custom-integration-path."
+            )
+        return obs, info
+
+    def _stage_from_ram(self) -> tuple[int, int] | None:
+        get_ram = getattr(self.env.unwrapped, "get_ram", None)
+        if get_ram is None:
+            return None
+        ram = get_ram()
+        try:
+            return int(ram[self.LEVEL_HI_ADDR]), int(ram[self.LEVEL_LO_ADDR])
+        except (IndexError, TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _display_stage(stage: tuple[int, int]) -> str:
+        return f"{stage[0] + 1}-{stage[1] + 1}"
 
 
 class InfoRewardShaping(gym.Wrapper):
@@ -411,3 +498,191 @@ class SmartMarioReward(gym.Wrapper):
             reward -= self.bad_button_penalty
 
         return reward
+
+
+class StageScoreReward(gym.Wrapper):
+    """World-stage reward profile that prioritizes clearing, then high score."""
+
+    X_KEYS = InfoRewardShaping.X_KEYS
+
+    def __init__(
+        self,
+        env: gym.Env,
+        progress_scale: float = 0.35,
+        score_scale: float = 0.02,
+        max_score_reward: float = 8.0,
+        coin_bonus: float = 1.5,
+        clear_bonus: float = 750.0,
+        route_transition_bonus: float = 35.0,
+        checkpoint_bonus: float = 8.0,
+        checkpoint_width: int = 128,
+        life_loss_penalty: float = 75.0,
+        death_penalty: float = 150.0,
+        time_penalty: float = 0.015,
+        stall_penalty: float = 0.08,
+        stall_window: int = 45,
+        max_stall_penalty: float = 2.0,
+        backtrack_penalty: float = 0.03,
+        route_reset_threshold: float = 192.0,
+        left_penalty: float = 0.01,
+        bad_button_penalty: float = 0.25,
+    ):
+        super().__init__(env)
+        self.progress_scale = progress_scale
+        self.score_scale = score_scale
+        self.max_score_reward = max_score_reward
+        self.coin_bonus = coin_bonus
+        self.clear_bonus = clear_bonus
+        self.route_transition_bonus = route_transition_bonus
+        self.checkpoint_bonus = checkpoint_bonus
+        self.checkpoint_width = checkpoint_width
+        self.life_loss_penalty = life_loss_penalty
+        self.death_penalty = death_penalty
+        self.time_penalty = time_penalty
+        self.stall_penalty = stall_penalty
+        self.stall_window = stall_window
+        self.max_stall_penalty = max_stall_penalty
+        self.backtrack_penalty = backtrack_penalty
+        self.route_reset_threshold = route_reset_threshold
+        self.left_penalty = left_penalty
+        self.bad_button_penalty = bad_button_penalty
+        self._area_index = 0
+        self._last_x: float | None = None
+        self._area_max_x = 0.0
+        self._next_checkpoint = float(checkpoint_width)
+        self._last_score: float | None = None
+        self._last_coins: int | None = None
+        self._last_lives: int | None = None
+        self._stall_steps = 0
+
+    def reset(self, **kwargs):
+        self._area_index = 0
+        self._last_x = None
+        self._area_max_x = 0.0
+        self._next_checkpoint = float(self.checkpoint_width)
+        self._last_score = None
+        self._last_coins = None
+        self._last_lives = None
+        self._stall_steps = 0
+        return self.env.reset(**kwargs)
+
+    def step(self, action: Any):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        components = {
+            "progress": 0.0,
+            "checkpoint": 0.0,
+            "route": 0.0,
+            "score": 0.0,
+            "coin": 0.0,
+            "clear": 0.0,
+            "life": 0.0,
+            "death": 0.0,
+            "time": -self.time_penalty,
+            "stall": 0.0,
+            "action": 0.0,
+        }
+
+        x_pos = self._extract_x(info)
+        if x_pos is not None:
+            if self._last_x is not None and x_pos + self.route_reset_threshold < self._last_x:
+                self._area_index += 1
+                self._area_max_x = 0.0
+                self._next_checkpoint = float(self.checkpoint_width)
+                self._stall_steps = 0
+                components["route"] += self.route_transition_bonus
+
+            if x_pos > self._area_max_x:
+                delta = x_pos - self._area_max_x
+                components["progress"] += self.progress_scale * min(delta, 24.0)
+                self._area_max_x = x_pos
+                self._stall_steps = 0
+            else:
+                backtrack = self._area_max_x - x_pos
+                components["progress"] -= self.backtrack_penalty * min(backtrack, 24.0)
+                self._stall_steps += 1
+
+            while self._area_max_x >= self._next_checkpoint:
+                components["checkpoint"] += self.checkpoint_bonus
+                self._next_checkpoint += self.checkpoint_width
+            self._last_x = x_pos
+
+        components["score"] = self._score_reward(info)
+        components["coin"] = self._coin_reward(info)
+        components["life"] = self._life_reward(info)
+        components["action"] = self._action_reward(info)
+
+        if bool(info.get("stage_clear_done", False)):
+            components["clear"] = self.clear_bonus
+        if terminated and self._is_failure(info):
+            components["death"] = -self.death_penalty
+
+        if self._stall_steps >= self.stall_window:
+            components["stall"] = -min(
+                self.max_stall_penalty,
+                self.stall_penalty * (self._stall_steps - self.stall_window + 1),
+            )
+
+        shaped = sum(components.values())
+        info = dict(info)
+        info["stage_score_reward"] = components
+        info["stage_score_area"] = self._area_index
+        info["stage_score_area_max_x"] = self._area_max_x
+        return obs, shaped, terminated, truncated, info
+
+    def _extract_x(self, info: dict[str, Any]) -> float | None:
+        return InfoRewardShaping._extract_x(self, info)
+
+    def _score_reward(self, info: dict[str, Any]) -> float:
+        if "score" not in info:
+            return 0.0
+        score = float(info["score"])
+        reward = 0.0
+        if self._last_score is not None:
+            delta = max(0.0, score - self._last_score)
+            reward = min(self.max_score_reward, self.score_scale * delta)
+        self._last_score = score
+        return reward
+
+    def _coin_reward(self, info: dict[str, Any]) -> float:
+        if "coins" not in info:
+            return 0.0
+        coins = int(info["coins"])
+        reward = 0.0
+        if self._last_coins is not None:
+            delta = coins - self._last_coins
+            if delta < 0:
+                delta += 100
+            reward = self.coin_bonus * max(0, delta)
+        self._last_coins = coins
+        return reward
+
+    def _life_reward(self, info: dict[str, Any]) -> float:
+        if "lives" not in info:
+            return 0.0
+        lives = int(info["lives"])
+        reward = 0.0
+        if self._last_lives is not None and lives < self._last_lives:
+            reward = -self.life_loss_penalty * (self._last_lives - lives)
+        self._last_lives = lives
+        return reward
+
+    def _action_reward(self, info: dict[str, Any]) -> float:
+        buttons = set(info.get("buttons_pressed", ()))
+        reward = 0.0
+        if "LEFT" in buttons:
+            reward -= self.left_penalty
+        if "LEFT" in buttons and "RIGHT" in buttons:
+            reward -= self.bad_button_penalty
+        if "START" in buttons or "SELECT" in buttons:
+            reward -= self.bad_button_penalty
+        return reward
+
+    def _is_failure(self, info: dict[str, Any]) -> bool:
+        if bool(info.get("stage_clear_done", False)):
+            return False
+        if bool(info.get("single_life_done", False)):
+            return True
+        try:
+            return int(info.get("lives", 0)) <= -1
+        except (TypeError, ValueError):
+            return False

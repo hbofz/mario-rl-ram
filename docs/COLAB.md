@@ -43,7 +43,49 @@ mario-smoke --steps 300
 
 You should see the RAM observation shape, action space, reward total, and `info` keys.
 
-## 5. Train PPO
+## 5. Add The World 5-2 State
+
+Copy or create this file before the serious run:
+
+```text
+custom_integrations/SuperMarioBros-Nes-v0/Level5-2.state
+```
+
+If you have a checkpoint that can clear 5-1, try:
+
+```bash
+mario-capture-state \
+  --model /content/drive/MyDrive/mario_rl/models/<run>/<checkpoint>.zip \
+  --algo ppo
+```
+
+Then validate the state starts on displayed World 5-2:
+
+```bash
+mario-smoke \
+  --state Level5-2 \
+  --custom-integration-path custom_integrations \
+  --expected-stage 5-2 \
+  --reward-mode stage-score \
+  --action-mode mario-secrets \
+  --single-stage
+```
+
+## 6. Train The 5-2 Agent
+
+The default `mario-train` settings now target World 5-2 with RAM + RecurrentPPO, `mario-secrets`, `stage-score`, single-life and single-stage episodes, VecNormalize, and completion-aware eval:
+
+```bash
+mario-train \
+  --timesteps 10000000 \
+  --model-dir /content/drive/MyDrive/mario_rl/models \
+  --log-dir /content/drive/MyDrive/mario_rl/runs \
+  --device cpu
+```
+
+For RAM observations with an MLP/LSTM policy, CPU is usually the right device because emulator workers are CPU-bound.
+
+## Legacy PPO
 
 Start with:
 

@@ -49,7 +49,19 @@ git clone https://github.com/hbofz/mario-rl-ram.git
 cd mario-rl-ram
 pip install -e .
 python -m stable_retro.import /content/drive/MyDrive/mario_roms/
-mario-train --timesteps 10000000 --n-envs 16 --action-mode mario --run-name ppo-ram-mario-actions-v4 --device cpu
+mario-train --timesteps 10000000 --device cpu
+```
+
+The default serious run now targets **World 5-2** with RAM + RecurrentPPO, the `mario-secrets` action space, stage-clear episode termination, `stage-score` reward shaping, and VecNormalize. Before that can run, create or copy:
+
+```text
+custom_integrations/SuperMarioBros-Nes-v0/Level5-2.state
+```
+
+Then verify it:
+
+```bash
+mario-smoke --state Level5-2 --custom-integration-path custom_integrations --expected-stage 5-2 --reward-mode stage-score --action-mode mario-secrets --single-stage
 ```
 
 ## PC Training
@@ -66,12 +78,11 @@ mario-eval --model models/ppo-ram-mario-actions-v4/final_model.zip --episodes 3 
 
 ## Current Baseline
 
-- Environment: `SuperMarioBros-Nes-v0`
+- Environment: `SuperMarioBros-Nes-v0`, custom state `Level5-2`
 - Observation: RAM
-- Action space: curated Mario actions by default for training
-- Reward mode: `smart` by default for training
-- Episode mode: single-life episodes by default for training
-- Algorithm: PPO with `MlpPolicy`
-- Stretch: RecurrentPPO with `MlpLstmPolicy`
+- Action space: `mario-secrets` by default for 5-2 training
+- Reward mode: `stage-score` by default for 5-2 training
+- Episode mode: single-life plus single-stage episodes by default for training
+- Algorithm: RecurrentPPO with `MlpLstmPolicy`
 
 Action details are in [docs/ACTIONS.md](docs/ACTIONS.md), and reward details are in [docs/REWARD.md](docs/REWARD.md).

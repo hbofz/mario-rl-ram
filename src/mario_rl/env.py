@@ -48,7 +48,7 @@ def make_mario_env(
         Level state to load, e.g. ``"Level1-1"``.  Must match a ``.state``
         file shipped with the integration.
     obs_mode:
-        ``"ram"``   – 2048-byte RAM vector, float32, MLP policy.
+        ``"ram"``   – Stable-Retro RAM vector, float32, MLP policy.
         ``"pixel"`` – grayscale 84×84×4 frame stack, uint8, CNN policy.
     action_mode:
         Button mapping mode (``"mario"`` = curated 11-action discrete set).
@@ -129,4 +129,3 @@ def _retro_action_mode(action_mode: ActionMode):
     if action_mode == "multidiscrete":
         return retro.Actions.MULTI_DISCRETE
     raise ValueError(f"Unknown action mode: {action_mode}")
-

@@ -107,6 +107,12 @@ Pixel observations use NatureCNN and benefit strongly from GPU.
 The `--state` argument chooses the level.  With `--reward-mode smart`, the
 matching reward profile is selected automatically.
 
+Training stays on that selected level by default.  `mario-train` uses
+`--flag-lock`, so clearing the flag ends the episode and resets back to the
+same `--state` instead of continuing into the next level.  Only use
+`--no-flag-lock` if you intentionally want the game to continue after a level
+clear.
+
 Example Level 7-1 run:
 
 ```bash

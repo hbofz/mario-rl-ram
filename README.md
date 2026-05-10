@@ -5,7 +5,7 @@ with [Stable-Retro](https://github.com/Farama-Foundation/stable-retro) and
 [Stable-Baselines3](https://stable-baselines3.readthedocs.io/).  It supports two
 observation pipelines:
 
-- **RAM agent:** reads the 2048-byte NES RAM state and trains an MLP policy.
+- **RAM agent:** reads Stable-Retro's RAM vector and trains an MLP policy.
 - **CNN agent:** reads game frames, preprocesses them to 84x84 grayscale frame
   stacks, and trains a CNN policy.
 
@@ -103,6 +103,12 @@ mario-train \
 Training auto-resumes from the latest checkpoint in the selected run directory
 unless `--no-auto-resume` is passed.
 
+By default, training is locked to the selected `--state`.  `mario-train` uses
+`--flag-lock` by default, so when Mario clears the flag and the game transitions
+to the next level, the episode ends and resets back to the original state.  For
+example, `--state Level7-1` repeatedly trains only on Level 7-1 unless
+`--no-flag-lock` is used.
+
 ## Evaluate
 
 ```bash
@@ -152,13 +158,3 @@ docs/
   training.
 - [Colab Guide](docs/COLAB.md): recommended notebook/runtime workflow.
 - [PC Setup](docs/PC_SETUP.md): local Windows/WSL/Linux setup and commands.
-
-## Submission Notes
-
-For a clean GitHub/professor submission:
-
-- Do not commit ROMs, checkpoints, TensorBoard logs, or generated videos.
-- Include short evaluation clips separately if your professor asks for media.
-- Mention whether a result came from RAM or pixel observations.
-- Report the command used to train/evaluate each model.
-- Use `smart_reward_total` from evaluation output when discussing reward behavior.

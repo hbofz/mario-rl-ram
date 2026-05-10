@@ -37,12 +37,19 @@ The wrapper order matters.  Actions are mapped before they reach the emulator,
 observations are preprocessed before PPO sees them, and rewards are shaped after
 episode-boundary wrappers add helpful flags such as `single_life_done`.
 
+`mario-train` enables `flag_lock` by default.  This keeps training focused on
+the selected Stable-Retro state: `--state Level7-1` starts each episode on
+Level 7-1, and once Mario clears the flag, the episode terminates and the next
+episode resets back to Level 7-1.  Passing `--no-flag-lock` disables that
+behavior.
+
 ## Observation Modes
 
 ### RAM
 
 `obs_mode="ram"` uses Stable-Retro RAM observations.  `RamFloat32` converts the
-raw byte vector into a float32 vector in `[0, 1]`.  The default policy is
+raw byte vector into a float32 vector in `[0, 1]`.  In this Stable-Retro Mario
+integration the RAM observation prints as `(10240,)`.  The default policy is
 `MlpPolicy` with separate 256x256 policy/value networks.
 
 This mode is fast and useful as a baseline because the agent sees memory

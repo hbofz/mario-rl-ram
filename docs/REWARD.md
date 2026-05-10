@@ -61,7 +61,7 @@ Each agent decision is repeated for 4 emulator frames by default, then the smart
 | `level` | Rewards a level variable change when the integration exposes one. |
 | `finish` | Gives large one-time bonuses near the end of the level and the approximate flag zone. |
 | `life` | Penalizes losing lives. |
-| `death` | Adds a larger penalty when an episode terminates after all lives are gone. |
+| `death` | Adds a larger penalty when an episode terminates from death or single-life loss. |
 | `time` | Adds a small per-decision time cost so standing still is not free. |
 | `stall` | Adds increasing pressure when progress has been flat/backward for several decisions. |
 
@@ -70,9 +70,39 @@ The wrapper also adds an `info["smart_reward"]` dictionary so we can inspect com
 of these components. Prefer that over the final `info["smart_reward"]`, because
 the final `info` only describes the last environment step.
 
-Training uses single-life episodes by default. When Mario loses a life, the episode ends immediately, which gives PPO cleaner feedback than waiting until every life is gone.
+Training uses single-life episodes by default. When Mario loses a life, the
+episode ends immediately, which gives PPO cleaner feedback than waiting until
+every life is gone.
 
-The recommended `mario` action mode also adds a small action-quality term. It lightly penalizes jump spam, neutral jumps, left movement, and impossible/bad buttons. Forward progress is still worth much more than the action penalty, so useful jumps remain profitable.
+The recommended `mario` action mode also adds a small action-quality term. It
+lightly penalizes jump spam, neutral jumps, left movement, and impossible/bad
+buttons. Forward progress is still worth much more than the action penalty, so
+useful jumps remain profitable.
+
+## Reward Profile Parameters
+
+Profiles are dictionaries of keyword arguments for `SmartMarioReward`.  Common
+fields:
+
+| Field | Meaning |
+|---|---|
+| `progress_scale` | Reward multiplier for forward x movement. |
+| `backtrack_scale` | Penalty multiplier for moving backward. |
+| `checkpoint_bonus` | One-time reward for each progress band. |
+| `zone_bonuses` | Optional one-time `(x_position, bonus)` section rewards. |
+| `score_scale` | Reward multiplier for score increases. |
+| `coin_bonus` | Flat reward per coin. |
+| `kill_bonus` | Flat inferred enemy-kill reward. |
+| `max_score_reward` | Optional cap on episode score reward. |
+| `max_kill_reward` | Optional cap on episode kill reward. |
+| `finish_zone_x` | Approximate x-position for near-finish bonus. |
+| `flag_zone_x` | Approximate x-position for flag-zone bonus. |
+| `death_penalty` | Penalty when the episode ends from death. |
+| `time_penalty` | Small per-decision cost. |
+| `stall_penalty` | Increasing cost when x progress stops. |
+
+Caps are especially important for levels with infinitely spawning enemies, such
+as World 7-1's Bullet Bills.
 
 ## Modes
 

@@ -6,7 +6,7 @@ from mario_rl.env import make_mario_env
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Smoke-test the Mario RAM environment.")
+    parser = argparse.ArgumentParser(description="Smoke-test a Mario RL environment.")
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
     parser.add_argument("--state", default="Level1-1", help="Level state to load, e.g. Level1-1.")
     parser.add_argument("--obs-mode", default="ram", choices=["ram", "pixel"], help="Observation mode: ram or pixel.")

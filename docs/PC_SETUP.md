@@ -1,80 +1,51 @@
 # PC Setup Guide
 
-This guide is for running training outside Colab on a Windows or Linux PC.
+This guide is for running the project outside Colab on Windows, WSL2, Linux, or
+macOS.  WSL2 Ubuntu is the recommended Windows path.
 
-Recommended path on Windows: **WSL2 Ubuntu**. Native Windows may work, but RL/emulator packages are usually smoother under Linux.
+## WSL2 Ubuntu
 
-## Option A: Windows With WSL2 Ubuntu
-
-### 1. Install WSL2
-
-Open PowerShell as Administrator:
+Install WSL2 from PowerShell as Administrator:
 
 ```powershell
 wsl --install -d Ubuntu
 ```
-
-Restart if Windows asks, then open Ubuntu from the Start menu.
-
-### 2. Install System Packages
 
 Inside Ubuntu:
 
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip build-essential ffmpeg
-```
-
-### 3. Clone The Repo
-
-```bash
 git clone https://github.com/hbofz/mario-rl-ram.git
 cd mario-rl-ram
-```
-
-### 4. Create The Python Environment
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
 ```
 
-### 5. Import The ROM
-
-Put your legally obtained `.nes` ROM in the repo's `roms/` folder.
-
-If the ROM is in your Windows Downloads folder, copy it from WSL like this:
+Put your legally obtained `.nes` ROM in `roms/`, then import it:
 
 ```bash
 mkdir -p roms
-cp /mnt/c/Users/<YOUR_WINDOWS_USERNAME>/Downloads/*.nes roms/
-```
-
-Then import it:
-
-```bash
 python -m stable_retro.import roms/
 ```
 
-Check setup:
+## macOS Or Linux With `uv`
 
 ```bash
-mario-doctor
-mario-smoke --steps 300 --reward-mode smart --action-mode mario
+uv sync
+source .venv/bin/activate
+python -m stable_retro.import roms/
 ```
 
-## Option B: Native Windows
+Apple Silicon uses the `stable-retro-apple-silicon` dependency from
+`pyproject.toml`.
 
-Native Windows is less tested for `stable-retro`, but this is the rough path.
+## Native Windows
 
-Install:
-
-- Git for Windows
-- Python 3.10, 3.11, or 3.12
-
-Then in PowerShell:
+Native Windows is less tested for Stable-Retro.  If install/import fails, use
+WSL2.
 
 ```powershell
 git clone https://github.com/hbofz/mario-rl-ram.git
@@ -83,6 +54,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -e .
+python -m stable_retro.import roms/
 ```
 
 If PowerShell blocks activation:
@@ -91,36 +63,47 @@ If PowerShell blocks activation:
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-Import the ROM:
-
-```powershell
-mkdir roms
-# Put your .nes file in roms/ first
-python -m stable_retro.import roms/
-```
-
-If native Windows fails while installing or importing `stable-retro`, use WSL2.
-
-## Overnight Training Command
-
-Use this for the final v4 setup:
+## Verify Setup
 
 ```bash
+mario-doctor
+mario-smoke --state Level1-1 --obs-mode ram --steps 300 --reward-mode smart
+mario-smoke --state Level1-1 --obs-mode pixel --steps 300 --reward-mode smart
+```
+
+## Local Training Examples
+
+```bash
+# RAM + MLP
 mario-train \
+  --obs-mode ram \
+  --state Level1-1 \
+  --reward-mode smart \
   --timesteps 20000000 \
   --n-envs 16 \
   --n-steps 512 \
   --batch-size 2048 \
-  --reward-mode smart \
-  --action-mode mario \
-  --action-repeat 4 \
-  --run-name ppo-ram-mario-actions-v4 \
+  --run-name ram-1-1 \
   --model-dir models \
   --log-dir runs \
   --device cpu
+
+# Pixel + CNN
+mario-train \
+  --obs-mode pixel \
+  --state Level1-1 \
+  --reward-mode smart \
+  --timesteps 5000000 \
+  --n-envs 8 \
+  --n-steps 128 \
+  --batch-size 512 \
+  --run-name cnn-1-1 \
+  --model-dir models \
+  --log-dir runs \
+  --device auto
 ```
 
-If your PC struggles, reduce parallel environments:
+If the machine struggles, reduce parallel environments:
 
 ```bash
 --n-envs 8 --batch-size 1024
@@ -128,31 +111,25 @@ If your PC struggles, reduce parallel environments:
 
 ## Resume Training
 
-Checkpoints save under:
-
-```text
-models/<run-name>/
-```
-
-Resume from the newest checkpoint:
+Checkpoints save under `models/<run-name>/`.  Auto-resume is enabled by default
+when you rerun the same command.  To force a specific checkpoint:
 
 ```bash
 mario-train \
-  --timesteps 5000000 \
-  --n-envs 16 \
-  --n-steps 512 \
-  --batch-size 2048 \
+  --obs-mode pixel \
+  --state Level1-1 \
   --reward-mode smart \
-  --action-mode mario \
-  --action-repeat 4 \
-  --run-name ppo-ram-mario-actions-v4 \
+  --resume-from models/cnn-1-1/ppo_2500000_steps.zip \
+  --timesteps 2500000 \
+  --n-envs 8 \
+  --run-name cnn-1-1 \
   --model-dir models \
   --log-dir runs \
-  --resume-from models/ppo-ram-mario-actions-v4/ppo_10000000_steps.zip \
-  --device cpu
+  --device auto
 ```
 
-The action mode must match the checkpoint. For `ppo-ram-mario-actions-v4`, use `--action-mode mario`.
+The observation mode, action mode, algorithm, and level should match the
+checkpoint.
 
 ## TensorBoard
 
@@ -160,43 +137,28 @@ The action mode must match the checkpoint. For `ppo-ram-mario-actions-v4`, use `
 tensorboard --logdir runs
 ```
 
-Open the URL it prints, usually:
-
-```text
-http://localhost:6006
-```
+Open the printed URL, usually `http://localhost:6006`.
 
 ## Evaluate And Make Videos
 
-Deterministic:
-
 ```bash
 mario-eval \
-  --model models/ppo-ram-mario-actions-v4/final_model.zip \
+  --model models/cnn-1-1/final_model.zip \
+  --obs-mode pixel \
+  --state Level1-1 \
   --episodes 5 \
-  --video-dir videos/final-deterministic \
   --reward-mode smart \
-  --action-mode mario \
-  --device cpu
+  --video-dir videos/cnn-1-1
 ```
 
-Stochastic, usually better for finding the strongest rollout:
+Use a new `--video-dir` for each run because Gymnasium warns when overwriting
+existing videos.
 
-```bash
-mario-eval \
-  --model models/ppo-ram-mario-actions-v4/final_model.zip \
-  --episodes 30 \
-  --video-dir videos/final-stochastic \
-  --reward-mode smart \
-  --action-mode mario \
-  --device cpu \
-  --no-deterministic
-```
-
-## Quick Troubleshooting
+## Troubleshooting
 
 - `Game not found`: run `python -m stable_retro.import roms/`.
 - `Module not found`: activate the venv, then run `pip install -e .`.
-- Training is slow: lower `--n-envs` to `8`.
-- GPU is idle: expected for RAM + MLP PPO. Use CPU for this baseline.
-- Videos overwrite: change `--video-dir` to a new folder.
+- Training is slow: lower `--n-envs` or use Colab for pixel training.
+- GPU is idle during RAM training: expected; emulator rollout collection is CPU
+  bound.
+- Evaluation fails to load a model: check the checkpoint path and `--obs-mode`.

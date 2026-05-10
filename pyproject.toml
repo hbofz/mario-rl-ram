@@ -1,7 +1,7 @@
 [project]
 name = "mario-ram-rl"
 version = "0.1.0"
-description = "Reinforcement learning agents for Super Mario Bros using Stable-Retro RAM observations."
+description = "Reinforcement learning agents for Super Mario Bros using Stable-Retro RAM and pixel observations."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [

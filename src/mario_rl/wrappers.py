@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Hashable
 from typing import Any
 
 import gymnasium as gym

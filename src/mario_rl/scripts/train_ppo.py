@@ -13,7 +13,7 @@ from mario_rl.env import make_mario_env
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train Mario from RAM with PPO.")
+    parser = argparse.ArgumentParser(description="Train a Mario RL agent with PPO.")
     parser.add_argument("--algo", default="ppo", choices=["ppo", "recurrent-ppo"])
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
     parser.add_argument("--timesteps", type=int, default=1_000_000)

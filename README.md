@@ -1,114 +1,164 @@
-# Mario RL — RAM & CNN Agents for Super Mario Bros
+# Mario RL: RAM and CNN Agents for Super Mario Bros.
 
-This project trains reinforcement learning agents to play **Super Mario Bros (World 1-1)**
-using two observation strategies: raw **RAM** (2048 bytes) and **pixel frames** (84×84 grayscale).
-Both agents use [PPO](https://arxiv.org/abs/1707.06347) via Stable-Baselines3 and train on
-Google Colab.
+This project trains reinforcement learning agents to play **Super Mario Bros.**
+with [Stable-Retro](https://github.com/Farama-Foundation/stable-retro) and
+[Stable-Baselines3](https://stable-baselines3.readthedocs.io/).  It supports two
+observation pipelines:
 
-## Why Two Observation Modes?
+- **RAM agent:** reads the 2048-byte NES RAM state and trains an MLP policy.
+- **CNN agent:** reads game frames, preprocesses them to 84x84 grayscale frame
+  stacks, and trains a CNN policy.
 
-| | RAM Agent | CNN Agent |
-|---|---|---|
-| **Observation** | 2048-byte RAM vector → float32 | 84×84 grayscale, 4-frame stack → uint8 |
-| **Policy** | MLP (256×256) | NatureCNN |
-| **Speed** | Very fast — no image ops | Slower — pixel preprocessing per step |
-| **Training device** | CPU (no CNN workload) | GPU (benefits from CUDA) |
-| **Insight** | Direct game-state access | Learns from visual appearance like humans |
+The project started with World 1-1 and now includes a per-level reward-profile
+system, including a specialized World 7-1 profile for cannon and Hammer Bros.
+training.
 
-## Setup
+## ROM Setup
 
-Requires Python 3.11–3.12. Use [`uv`](https://github.com/astral-sh/uv) for local dev:
-
-```bash
-uv sync
-source .venv/bin/activate
-```
-
-Import your legally obtained ROM:
+The project expects a Super Mario Bros. `.nes` ROM under `roms/`.  Import it
+into Stable-Retro before running training or evaluation:
 
 ```bash
 python -m stable_retro.import roms/
 ```
 
-Verify the environment:
+The `models/`, `runs/`, and `videos/` directories are ignored because they
+contain large generated artifacts.
+
+## Project Highlights
+
+| Area | What this project does |
+|---|---|
+| Environment | Builds a Gymnasium-compatible Stable-Retro Mario environment. |
+| Algorithms | Supports PPO and RecurrentPPO through Stable-Baselines3/SB3-Contrib. |
+| Observations | Supports RAM vectors and pixel-frame stacks. |
+| Actions | Uses a curated 11-action Mario controller space. |
+| Rewards | Uses dense smart rewards with map-specific profiles. |
+| Training | Provides local and Colab commands with checkpoint auto-resume. |
+| Evaluation | Records videos and prints episode-level reward component totals. |
+
+## Quick Start
+
+Requires Python 3.10, 3.11, or 3.12.  The local setup uses `uv`:
 
 ```bash
+uv sync
+source .venv/bin/activate
+python -m stable_retro.import roms/
 mario-doctor
-mario-smoke --state Level1-1 --obs-mode ram --steps 300
-mario-smoke --state Level1-1 --obs-mode pixel --steps 300
 ```
 
-## Level Design
-
-Training is locked to **World 1-1** (`--state Level1-1 --flag-lock`). Episodes end when:
-
-- Mario **dies** (single-life mode, on by default), or
-- Mario **completes the level** — the `FlagLockEpisode` wrapper detects the level
-  transition and terminates, then resets to the start of 1-1.
-
-Available level states: `Level1-1`, `Level2-1`, `Level3-1`, `Level4-1`, `Level5-1`,
-`Level6-1`, `Level7-1`, `Level8-1`.
-
-## Action Space
-
-Uses `--action-mode mario` — a curated 11-action discrete set (no START/SELECT noise).
-See [docs/ACTIONS.md](docs/ACTIONS.md) for the full table.
-
-## Reward Design
-
-Uses `--reward-mode smart` — a dense reward with per-level profiles for forward
-progress, checkpoints, coins, enemy kills, score, time pressure, stall penalties,
-and death penalties.
-See [docs/REWARD.md](docs/REWARD.md) for details.
-
-## Local Smoke Training
+Smoke-test both observation modes:
 
 ```bash
-# RAM
-mario-train --obs-mode ram --state Level1-1 --flag-lock --timesteps 20000 --n-envs 2 --run-name local-smoke-ram
-
-# CNN
-mario-train --obs-mode pixel --state Level1-1 --flag-lock --timesteps 20000 --n-envs 2 --run-name local-smoke-cnn
+mario-smoke --state Level1-1 --obs-mode ram --steps 300 --reward-mode smart
+mario-smoke --state Level1-1 --obs-mode pixel --steps 300 --reward-mode smart
 ```
 
-## Colab Training
+## Train
 
-See [docs/COLAB.md](docs/COLAB.md). Quick reference:
+Small local smoke runs:
 
 ```bash
-# RAM model (10M steps, CPU)
-mario-train --obs-mode ram --state Level1-1 --flag-lock \
-  --timesteps 10000000 --n-envs 16 --run-name ram-1-1 --device cpu
-
-# CNN model (5M steps, GPU)
-mario-train --obs-mode pixel --state Level1-1 --flag-lock \
-  --timesteps 5000000 --n-envs 8 --n-steps 128 --batch-size 512 \
-  --run-name cnn-1-1 --device auto
+mario-train --obs-mode ram --state Level1-1 --timesteps 20000 --n-envs 2 --run-name local-ram
+mario-train --obs-mode pixel --state Level1-1 --timesteps 20000 --n-envs 2 --run-name local-cnn
 ```
 
-## Evaluation
+Longer Colab-style runs:
 
 ```bash
-mario-eval --model models/ram-1-1/final_model.zip --obs-mode ram --state Level1-1 --episodes 5 --video-dir videos/ram
-mario-eval --model models/cnn-1-1/final_model.zip --obs-mode pixel --state Level1-1 --episodes 5 --video-dir videos/cnn
+# RAM + MLP baseline
+mario-train \
+  --obs-mode ram \
+  --state Level1-1 \
+  --reward-mode smart \
+  --timesteps 10000000 \
+  --n-envs 16 \
+  --run-name ram-1-1 \
+  --device cpu
+
+# Pixel + CNN agent
+mario-train \
+  --obs-mode pixel \
+  --state Level1-1 \
+  --reward-mode smart \
+  --timesteps 5000000 \
+  --n-envs 8 \
+  --n-steps 128 \
+  --batch-size 512 \
+  --run-name cnn-1-1 \
+  --device auto
+
+# Specialized Level 7-1 training
+mario-train \
+  --obs-mode pixel \
+  --state Level7-1 \
+  --reward-mode smart \
+  --timesteps 5000000 \
+  --n-envs 8 \
+  --run-name cnn-7-1 \
+  --device auto
 ```
 
-## Project Structure
+Training auto-resumes from the latest checkpoint in the selected run directory
+unless `--no-auto-resume` is passed.
 
+## Evaluate
+
+```bash
+mario-eval \
+  --model models/cnn-1-1/final_model.zip \
+  --obs-mode pixel \
+  --state Level1-1 \
+  --episodes 5 \
+  --reward-mode smart \
+  --video-dir videos/cnn-1-1
 ```
+
+`mario-eval` prints score, coins, max x-position, final info, and
+`smart_reward_total`, which is the sum of reward components across the whole
+episode.
+
+## Repository Structure
+
+```text
 src/mario_rl/
-├── __init__.py        # Package exports
-├── env.py             # make_mario_env() — unified RAM/pixel factory
-├── levels.py          # Reward profile registry entrypoint
-├── reward_profiles/   # Per-map reward numbers
-├── wrappers.py        # All Gym wrappers (action, obs, reward, episode)
-└── scripts/
-    ├── train_ppo.py   # mario-train CLI
-    ├── evaluate.py    # mario-eval CLI
-    ├── smoke.py       # mario-smoke CLI
-    └── doctor.py      # mario-doctor CLI
+|-- env.py              # Environment factory used by every CLI/script
+|-- wrappers.py         # Action, observation, frame-stack, and episode wrappers
+|-- rewards.py          # Reward wrapper implementation
+|-- levels.py           # State name -> reward profile lookup
+|-- reward_profiles/    # Per-map reward tuning files
+`-- scripts/            # mario-doctor, mario-smoke, mario-train, mario-eval
+
+notebooks/
+|-- ram_training.ipynb  # Colab notebook for RAM + MLP PPO
+`-- cnn_training.ipynb  # Colab notebook for pixels + CNN PPO
+
+docs/
+|-- ARCHITECTURE.md     # How the system is wired internally
+|-- ACTIONS.md          # Curated Mario action space
+|-- REWARD.md           # Reward shaping and per-level profiles
+|-- COLAB.md            # Colab training guide
+`-- PC_SETUP.md         # Local/WSL setup guide
 ```
 
-## PC Setup
+## Documentation Map
 
-See [docs/PC_SETUP.md](docs/PC_SETUP.md) for Windows/WSL2/Linux setup.
+- [Architecture](docs/ARCHITECTURE.md): environment pipeline, wrappers, CLIs, and
+  training flow.
+- [Reward Design](docs/REWARD.md): smart reward components and per-level profile
+  system.
+- [Action Space](docs/ACTIONS.md): the discrete controller actions used for
+  training.
+- [Colab Guide](docs/COLAB.md): recommended notebook/runtime workflow.
+- [PC Setup](docs/PC_SETUP.md): local Windows/WSL/Linux setup and commands.
+
+## Submission Notes
+
+For a clean GitHub/professor submission:
+
+- Do not commit ROMs, checkpoints, TensorBoard logs, or generated videos.
+- Include short evaluation clips separately if your professor asks for media.
+- Mention whether a result came from RAM or pixel observations.
+- Report the command used to train/evaluate each model.
+- Use `smart_reward_total` from evaluation output when discussing reward behavior.

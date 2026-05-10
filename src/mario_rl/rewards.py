@@ -221,8 +221,10 @@ class SmartMarioReward(gym.Wrapper):
                 components["checkpoint"] += self.checkpoint_bonus
                 self._next_checkpoint += self.checkpoint_width
             components["zone"] = self._zone_reward()
-            components["finish"] = self._finish_reward()
+            components["finish"] = self._finish_reward(info, terminated)
             self._last_x = x_pos
+        else:
+            components["finish"] = self._finish_reward(info, terminated)
 
         # Score + kill inference (must use self._last_score before _score update)
         components["score"], components["kill"] = self._score_and_kill_reward(info, coin_delta)
@@ -350,15 +352,38 @@ class SmartMarioReward(gym.Wrapper):
         except (TypeError, ValueError):
             return 0
 
-    def _finish_reward(self) -> float:
+    def _finish_reward(self, info: dict[str, Any], terminated: bool) -> float:
         reward = 0.0
         if not self._finish_zone_awarded and self._max_x >= self.finish_zone_x:
             reward += self.finish_zone_bonus
             self._finish_zone_awarded = True
-        if not self._flag_zone_awarded and self._max_x >= self.flag_zone_x:
-            reward += self.flag_bonus
-            self._flag_zone_awarded = True
+        # Real flag detection: prefer flag_get / flag_lock_done / level transition
+        # over an x-position guess.  Falls back to flag_zone_x only if no signal.
+        if not self._flag_zone_awarded:
+            flag_hit = (
+                bool(info.get("flag_get", False))
+                or bool(info.get("flag_lock_done", False))
+                or self._level_changed(info)
+            )
+            if flag_hit:
+                reward += self.flag_bonus
+                self._flag_zone_awarded = True
+            elif self.flag_zone_x is not None and self._max_x >= self.flag_zone_x:
+                # Soft fallback only if the episode also ended normally without
+                # a death — avoids paying out when Mario just walked far.
+                if terminated and self._life_like(info) >= 0:
+                    reward += self.flag_bonus
+                    self._flag_zone_awarded = True
         return reward
+
+    def _level_changed(self, info: dict[str, Any]) -> bool:
+        if "levelLo" not in info or "levelHi" not in info:
+            return False
+        try:
+            level = (int(info["levelHi"]), int(info["levelLo"]))
+        except (TypeError, ValueError):
+            return False
+        return self._last_level is not None and level != self._last_level
 
     def _zone_reward(self) -> float:
         reward = 0.0

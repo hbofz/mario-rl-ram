@@ -8,11 +8,14 @@ from mario_rl.env import make_mario_env
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke-test the Mario RAM environment.")
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
+    parser.add_argument("--state", default="Level1-1", help="Level state to load, e.g. Level1-1.")
+    parser.add_argument("--obs-mode", default="ram", choices=["ram", "pixel"], help="Observation mode: ram or pixel.")
     parser.add_argument("--steps", type=int, default=300)
     parser.add_argument("--action-mode", default="mario", choices=["all", "discrete", "multidiscrete", "mario"])
     parser.add_argument("--reward-mode", default="base", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--flag-lock", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args()
 
 
@@ -21,11 +24,14 @@ def main() -> None:
     try:
         env = make_mario_env(
             game=args.game,
+            state=args.state,
+            obs_mode=args.obs_mode,
             action_mode=args.action_mode,
             reward_mode=args.reward_mode,
             action_repeat=args.action_repeat,
             render_mode=None,
             single_life=args.single_life,
+            flag_lock=args.flag_lock,
         )
     except FileNotFoundError as exc:
         raise SystemExit(

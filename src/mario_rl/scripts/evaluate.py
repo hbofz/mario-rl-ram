@@ -16,11 +16,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--algo", default="ppo", choices=["ppo", "recurrent-ppo"])
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--game", default="SuperMarioBros-Nes-v0")
+    parser.add_argument("--state", default="Level1-1", help="Level state used during training, e.g. Level1-1.")
+    parser.add_argument("--obs-mode", default="ram", choices=["ram", "pixel"], help="Must match the obs mode used during training.")
     parser.add_argument("--video-dir", default=None)
     parser.add_argument("--action-mode", default="mario", choices=["all", "discrete", "multidiscrete", "mario"])
     parser.add_argument("--reward-mode", default="smart", choices=["base", "shaped", "smart"])
     parser.add_argument("--action-repeat", type=int, default=4)
     parser.add_argument("--single-life", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--flag-lock", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
@@ -31,12 +34,15 @@ def main() -> None:
     render_mode = "rgb_array" if args.video_dir else None
     env = make_mario_env(
         game=args.game,
+        state=args.state,
+        obs_mode=args.obs_mode,
         action_mode=args.action_mode,
         reward_mode=args.reward_mode,
         action_repeat=args.action_repeat,
         render_mode=render_mode,
         monitor=False,
         single_life=args.single_life,
+        flag_lock=args.flag_lock,
     )
 
     if args.video_dir:

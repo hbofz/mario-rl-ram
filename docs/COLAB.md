@@ -2,7 +2,8 @@
 
 ## 1. Runtime
 
-Use a GPU runtime. A100 or H100 is ideal, but remember the emulator is still CPU-sensitive. The GPU helps more during PPO updates than during frame/RAM collection.
+Use a GPU runtime. A100 or H100 is ideal. For RAM + MLP training the GPU helps
+mostly during PPO updates; for CNN + pixel training it helps significantly more.
 
 ## 2. Clone The Repo
 
@@ -12,19 +13,9 @@ cd mario-rl-ram
 pip install -e .
 ```
 
-The repo uses platform-specific dependencies: Colab/Linux installs upstream `stable-retro==1.0.0`; Apple Silicon Macs install `stable-retro-apple-silicon` for local smoke tests.
-
-If Colab already has incompatible packages loaded, restart the runtime after installing.
+Restart the runtime after installing if Colab already has conflicting packages loaded.
 
 ## 3. Import The ROM
-
-Upload your legally obtained ROM to Google Drive, for example:
-
-```text
-/content/drive/MyDrive/mario_roms/
-```
-
-Then:
 
 ```python
 from google.colab import drive
@@ -38,93 +29,120 @@ python -m stable_retro.import /content/drive/MyDrive/mario_roms/
 ## 4. Smoke Test
 
 ```bash
-mario-smoke --steps 300
+# RAM pipeline
+mario-smoke --state Level1-1 --obs-mode ram --steps 300
+
+# Pixel pipeline
+mario-smoke --state Level1-1 --obs-mode pixel --steps 300
 ```
 
-You should see the RAM observation shape, action space, reward total, and `info` keys.
+Both should print the observation space, action space, and `info` keys without errors.
 
-## 5. Train PPO
+## 5. Train — RAM Model (MLP Policy)
 
-Start with:
+Trains a 2048-byte RAM observation agent with an MLP policy on **World 1-1 only**.
+Episodes restart when Mario dies **or** completes the level (flag lock on by default).
 
 ```bash
 mario-train \
+  --obs-mode ram \
+  --state Level1-1 \
+  --flag-lock \
   --timesteps 10000000 \
   --n-envs 16 \
   --n-steps 512 \
   --batch-size 2048 \
   --reward-mode smart \
   --action-mode mario \
-  --run-name ppo-ram-mario-actions-v4 \
-  --device cpu
-```
-
-For RAM observations with an MLP policy, PPO often trains faster on CPU than GPU because there is no CNN workload. The A100/H100 still helps if you later add pixel observations, but this RAM baseline should use `--device cpu`.
-
-## 6. Save To Drive
-
-Use Drive paths when you want checkpoints to survive runtime resets:
-
-```bash
-mario-train \
-  --timesteps 20000000 \
-  --n-envs 16 \
-  --reward-mode smart \
-  --action-mode mario \
-  --run-name ppo-ram-mario-actions-v4 \
-  --model-dir /content/drive/MyDrive/mario_rl/models \
-  --log-dir /content/drive/MyDrive/mario_rl/runs
-```
-
-## 7. Recurrent Stretch Run
-
-## 7. Resume From A Checkpoint
-
-If Colab disconnects, resume from the newest checkpoint in Drive. The action mode must match the checkpoint. For the older `ppo-ram-full-controller-v2` run, use `--action-mode all`; for the new `ppo-ram-mario-actions-v4` run, use `--action-mode mario`.
-
-For example, if your old full-controller checkpoint is `ppo_8500000_steps.zip` and the original goal was 10M steps, train for roughly 1.5M more:
-
-```bash
-mario-train \
-  --timesteps 1500000 \
-  --n-envs 16 \
-  --n-steps 512 \
-  --batch-size 2048 \
-  --reward-mode smart \
-  --action-mode all \
-  --run-name ppo-ram-full-controller-v2 \
+  --run-name ram-1-1 \
   --model-dir /content/drive/MyDrive/mario_rl/models \
   --log-dir /content/drive/MyDrive/mario_rl/runs \
-  --resume-from /content/drive/MyDrive/mario_rl/models/ppo-ram-full-controller-v2/ppo_8500000_steps.zip \
   --device cpu
 ```
 
-The trainer keeps the checkpoint's timestep counter when resuming, so future checkpoint filenames continue from the loaded model's count.
+> RAM + MLP trains faster on CPU than GPU because there is no CNN workload.
 
-## 8. Recurrent Stretch Run
+## 6. Train — CNN Model (Pixel Policy)
 
-After PPO works:
+Trains an 84×84 grayscale 4-frame-stack agent with NatureCNN on **World 1-1 only**.
+
+```bash
+mario-train \
+  --obs-mode pixel \
+  --state Level1-1 \
+  --flag-lock \
+  --timesteps 5000000 \
+  --n-envs 8 \
+  --n-steps 128 \
+  --batch-size 512 \
+  --reward-mode smart \
+  --action-mode mario \
+  --run-name cnn-1-1 \
+  --model-dir /content/drive/MyDrive/mario_rl/models \
+  --log-dir /content/drive/MyDrive/mario_rl/runs \
+  --device auto
+```
+
+> CNN training benefits from GPU. Use `--device auto` to let SB3 pick CUDA.
+> Fewer parallel envs (`--n-envs 8`) are used because pixel preprocessing is heavier.
+
+## 7. Auto-Resume After Disconnects
+
+Auto-resume is **on by default**. If Colab disconnects, just re-run the exact same
+`mario-train` command — it scans `--model-dir` for the latest `.zip` and continues.
+
+To resume from a specific checkpoint:
+
+```bash
+mario-train \
+  --obs-mode ram \
+  --state Level1-1 \
+  --resume-from /content/drive/MyDrive/mario_rl/models/ram-1-1/ppo_5000000_steps.zip \
+  --timesteps 5000000 \
+  --n-envs 16 \
+  --run-name ram-1-1 \
+  --model-dir /content/drive/MyDrive/mario_rl/models \
+  --log-dir /content/drive/MyDrive/mario_rl/runs \
+  --device cpu
+```
+
+> **Important:** `--obs-mode` must match the checkpoint you are resuming from.
+
+## 8. Evaluate & Make Videos
+
+```bash
+# RAM model
+mario-eval \
+  --model /content/drive/MyDrive/mario_rl/models/ram-1-1/final_model.zip \
+  --obs-mode ram \
+  --state Level1-1 \
+  --episodes 5 \
+  --video-dir /content/drive/MyDrive/mario_rl/videos/ram
+
+# CNN model
+mario-eval \
+  --model /content/drive/MyDrive/mario_rl/models/cnn-1-1/final_model.zip \
+  --obs-mode pixel \
+  --state Level1-1 \
+  --episodes 5 \
+  --video-dir /content/drive/MyDrive/mario_rl/videos/cnn
+```
+
+For your submission, record videos from: random baseline, an early checkpoint,
+a mid-training checkpoint, and the final model — for both RAM and CNN.
+
+## 9. Recurrent Stretch (Optional)
+
+After PPO works, try RecurrentPPO for temporal memory:
 
 ```bash
 mario-train \
   --algo recurrent-ppo \
+  --obs-mode ram \
+  --state Level1-1 \
+  --flag-lock \
   --timesteps 5000000 \
   --n-envs 8 \
-  --n-steps 512 \
-  --batch-size 1024 \
-  --reward-mode smart \
-  --action-mode mario \
-  --run-name recurrent-ppo-ram-mario-actions \
+  --run-name recurrent-ram-1-1 \
   --device cpu
 ```
-
-## 9. Make Videos
-
-```bash
-mario-eval \
-  --model /content/drive/MyDrive/mario_rl/models/ppo-ram-mario-actions-v4/final_model.zip \
-  --episodes 3 \
-  --video-dir /content/drive/MyDrive/mario_rl/videos
-```
-
-For the presentation, save videos from multiple checkpoints: random, early training, middle training, and final.

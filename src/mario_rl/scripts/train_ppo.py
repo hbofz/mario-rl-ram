@@ -38,6 +38,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-freq", type=int, default=250_000)
     parser.add_argument("--resume-from", default=None, help="Path to a saved SB3 checkpoint to continue training.")
     parser.add_argument("--auto-resume", action=argparse.BooleanOptionalAction, default=True, help="Automatically resume from the latest checkpoint in model-dir.")
+    # --- new args ---
+    parser.add_argument("--state", default="Level1-1", help="Stable-Retro state (level) to train on, e.g. Level1-1.")
+    parser.add_argument("--obs-mode", default="ram", choices=["ram", "pixel"], help="ram = MLP policy on RAM; pixel = CNN policy on 84x84 grayscale frames.")
+    parser.add_argument("--flag-lock", action=argparse.BooleanOptionalAction, default=True, help="End episode when Mario completes the level (flag locked).")
     return parser.parse_args()
 
 
@@ -45,12 +49,15 @@ def make_env_factory(args: argparse.Namespace, rank: int):
     def _init():
         env = make_mario_env(
             game=args.game,
+            state=args.state,
+            obs_mode=args.obs_mode,
             action_mode=args.action_mode,
             reward_mode=args.reward_mode,
             action_repeat=args.action_repeat,
             render_mode=None,
             monitor=False,
             single_life=args.single_life,
+            flag_lock=args.flag_lock,
         )
         env.reset(seed=args.seed + rank)
         return env
@@ -82,6 +89,16 @@ def main() -> None:
     )
     env = VecMonitor(env)
 
+    is_pixel = args.obs_mode == "pixel"
+    # CNN policy for pixel mode; MLP policy for RAM mode
+    if args.algo == "ppo":
+        policy = "CnnPolicy" if is_pixel else "MlpPolicy"
+    else:
+        policy = "CnnLstmPolicy" if is_pixel else "MlpLstmPolicy"
+
+    # net_arch is meaningful only for MLP policies; CNN uses NatureCNN backbone
+    policy_kwargs: dict = {} if is_pixel else dict(net_arch=dict(pi=[256, 256], vf=[256, 256]))
+
     common_kwargs = dict(
         env=env,
         learning_rate=args.learning_rate,
@@ -96,7 +113,7 @@ def main() -> None:
         verbose=1,
         seed=args.seed,
         device=args.device,
-        policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256])),
+        policy_kwargs=policy_kwargs,
     )
 
     model_cls = PPO if args.algo == "ppo" else RecurrentPPO
@@ -111,7 +128,6 @@ def main() -> None:
         )
         print(f"Loaded checkpoint with num_timesteps={model.num_timesteps}")
     else:
-        policy = "MlpPolicy" if args.algo == "ppo" else "MlpLstmPolicy"
         model = model_cls(policy, **common_kwargs)
 
     checkpoint_freq = max(args.checkpoint_freq // args.n_envs, 1)

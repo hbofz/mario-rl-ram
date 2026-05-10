@@ -7,16 +7,15 @@ import stable_retro as retro
 from stable_baselines3.common.monitor import Monitor
 
 from mario_rl.levels import get_level_reward_kwargs
+from mario_rl.rewards import InfoRewardShaping, SmartMarioReward
 from mario_rl.wrappers import (
     ActionRepeat,
     FlagLockEpisode,
     FrameStack,
-    InfoRewardShaping,
     MarioActionSpace,
     PixelPreprocess,
     RamFloat32,
     SingleLifeEpisode,
-    SmartMarioReward,
 )
 
 

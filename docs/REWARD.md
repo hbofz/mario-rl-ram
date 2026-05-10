@@ -18,6 +18,34 @@ That teaches "move right", but it does not directly value safer play, coins, sco
 
 This project therefore trains with `--reward-mode smart` by default.
 
+## Per-Level Profiles
+
+The reward wrapper lives in `src/mario_rl/rewards.py`, but the numbers are
+split by map under `src/mario_rl/reward_profiles/`.
+
+Current layout:
+
+```text
+src/mario_rl/reward_profiles/
+|-- level_1_1.py       # tuned World 1-1 profile
+|-- level_7_1.py       # tuned World 7-1 cannon/Hammer Bros profile
+|-- future_levels.py   # rough geometry-only starter profiles
+`-- __init__.py        # Stable-Retro state -> profile registry
+```
+
+To tune a map, create a new `level_*.py` file with the reward kwargs for
+`SmartMarioReward`, then register the Stable-Retro state name in
+`reward_profiles/__init__.py`.
+
+World 1-1 is currently tuned toward more human-like play: beating the map is
+still the main goal, but coins, enemy kills, and score events are stronger so
+the policy has a reason to do more than sprint right.
+
+World 7-1 is tuned differently because Bullet Bills can be farmed forever.  It
+adds one-time section-clear bonuses, stronger death pressure, and caps on
+score/kill reward so the agent learns to clear the cannon and Hammer Bros.
+gauntlet instead of standing still for infinite enemy points.
+
 ## Smart Reward Components
 
 Each agent decision is repeated for 4 emulator frames by default, then the smart reward is computed from Stable-Retro `info` variables.
@@ -26,8 +54,10 @@ Each agent decision is repeated for 4 emulator frames by default, then the smart
 |---|---|
 | `progress` | Rewards forward movement using `xscrollLo + 256 * xscrollHi`; lightly penalizes moving backward. |
 | `checkpoint` | Gives a bonus when Mario reaches each new 128-pixel progress band. |
+| `zone` | Optional one-time profile-defined bonuses for clearing major map sections. |
 | `score` | Rewards score increases from enemies, blocks, powerups, and flag scoring. |
 | `coin` | Rewards coin collection, including coin counter wraparound. |
+| `kill` | Adds a bonus when score jumps indicate an enemy kill that was not just a coin. |
 | `level` | Rewards a level variable change when the integration exposes one. |
 | `finish` | Gives large one-time bonuses near the end of the level and the approximate flag zone. |
 | `life` | Penalizes losing lives. |
@@ -36,6 +66,9 @@ Each agent decision is repeated for 4 emulator frames by default, then the smart
 | `stall` | Adds increasing pressure when progress has been flat/backward for several decisions. |
 
 The wrapper also adds an `info["smart_reward"]` dictionary so we can inspect component-level rewards during debugging.
+`mario-eval` also prints `smart_reward_total`, which is the episode-level sum
+of these components. Prefer that over the final `info["smart_reward"]`, because
+the final `info` only describes the last environment step.
 
 Training uses single-life episodes by default. When Mario loses a life, the episode ends immediately, which gives PPO cleaner feedback than waiting until every life is gone.
 

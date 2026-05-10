@@ -66,6 +66,7 @@ def main() -> None:
         episode_start = True
         max_x = 0.0
         final_info = {}
+        smart_reward_totals: dict[str, float] = {}
 
         while not done:
             if args.algo == "recurrent-ppo":
@@ -84,6 +85,7 @@ def main() -> None:
             episode_reward += float(reward)
             final_info = info
             max_x = max(max_x, _x_position(info) or 0.0)
+            _add_smart_reward_totals(smart_reward_totals, info)
 
         print(
             f"episode={episode + 1} "
@@ -93,6 +95,7 @@ def main() -> None:
             f"coins={final_info.get('coins')} "
             f"time={final_info.get('time')} "
             f"lives={final_info.get('lives')} "
+            f"smart_reward_total={_rounded_totals(smart_reward_totals)} "
             f"info={final_info}"
         )
 
@@ -103,6 +106,21 @@ def _x_position(info: dict) -> float | None:
     if "xscrollLo" in info and "xscrollHi" in info:
         return float(info["xscrollLo"]) + 256.0 * float(info["xscrollHi"])
     return None
+
+
+def _add_smart_reward_totals(totals: dict[str, float], info: dict) -> None:
+    components = info.get("smart_reward")
+    if not isinstance(components, dict):
+        return
+    for name, value in components.items():
+        try:
+            totals[name] = totals.get(name, 0.0) + float(value)
+        except (TypeError, ValueError):
+            continue
+
+
+def _rounded_totals(totals: dict[str, float]) -> dict[str, float]:
+    return {name: round(value, 2) for name, value in sorted(totals.items())}
 
 
 if __name__ == "__main__":

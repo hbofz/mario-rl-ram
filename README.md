@@ -56,8 +56,9 @@ See [docs/ACTIONS.md](docs/ACTIONS.md) for the full table.
 
 ## Reward Design
 
-Uses `--reward-mode smart` — a dense reward with components for forward progress,
-checkpoints, coins, score, time pressure, stall penalties, and death penalties.
+Uses `--reward-mode smart` — a dense reward with per-level profiles for forward
+progress, checkpoints, coins, enemy kills, score, time pressure, stall penalties,
+and death penalties.
 See [docs/REWARD.md](docs/REWARD.md) for details.
 
 ## Local Smoke Training
@@ -98,7 +99,8 @@ mario-eval --model models/cnn-1-1/final_model.zip --obs-mode pixel --state Level
 src/mario_rl/
 ├── __init__.py        # Package exports
 ├── env.py             # make_mario_env() — unified RAM/pixel factory
-├── levels.py          # Per-level reward zone configs
+├── levels.py          # Reward profile registry entrypoint
+├── reward_profiles/   # Per-map reward numbers
 ├── wrappers.py        # All Gym wrappers (action, obs, reward, episode)
 └── scripts/
     ├── train_ppo.py   # mario-train CLI

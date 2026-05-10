@@ -76,6 +76,7 @@ class SmartMarioReward(gym.Wrapper):
 
     ``progress``    Forward x-scroll reward (+) or backtrack penalty (−).
     ``checkpoint``  One-time bonus each new 128-pixel milestone.
+    ``zone``        Optional one-time bonuses for hand-picked level sections.
     ``score``       Proportional reward for score increases (enemies, blocks, powerups).
     ``coin``        Flat bonus per coin collected (handles counter wraparound).
     ``kill``        Flat bonus inferred when score jumps ≥ 100 pts without a coin —
@@ -103,9 +104,12 @@ class SmartMarioReward(gym.Wrapper):
         score_scale: float = 0.025,
         coin_bonus: float = 1.0,
         kill_bonus: float = 0.0,
+        max_score_reward: float | None = None,
+        max_kill_reward: float | None = None,
         # Milestones
         checkpoint_bonus: float = 5.0,
         checkpoint_width: int = 128,
+        zone_bonuses: tuple[tuple[float, float], ...] = (),
         level_bonus: float = 50.0,
         finish_zone_x: float = 3100.0,
         finish_zone_bonus: float = 100.0,
@@ -133,8 +137,11 @@ class SmartMarioReward(gym.Wrapper):
         self.score_scale = score_scale
         self.coin_bonus = coin_bonus
         self.kill_bonus = kill_bonus
+        self.max_score_reward = max_score_reward
+        self.max_kill_reward = max_kill_reward
         self.checkpoint_bonus = checkpoint_bonus
         self.checkpoint_width = checkpoint_width
+        self.zone_bonuses = tuple(sorted(zone_bonuses))
         self.level_bonus = level_bonus
         self.finish_zone_x = finish_zone_x
         self.finish_zone_bonus = finish_zone_bonus
@@ -163,6 +170,9 @@ class SmartMarioReward(gym.Wrapper):
         self._last_level: tuple[int, int] | None = None
         self._stall_steps = 0
         self._jump_streak = 0
+        self._zone_index = 0
+        self._score_reward_total = 0.0
+        self._kill_reward_total = 0.0
         self._finish_zone_awarded = False
         self._flag_zone_awarded = False
 
@@ -176,6 +186,9 @@ class SmartMarioReward(gym.Wrapper):
         self._last_level = None
         self._stall_steps = 0
         self._jump_streak = 0
+        self._zone_index = 0
+        self._score_reward_total = 0.0
+        self._kill_reward_total = 0.0
         self._finish_zone_awarded = False
         self._flag_zone_awarded = False
         return self.env.reset(**kwargs)
@@ -183,7 +196,7 @@ class SmartMarioReward(gym.Wrapper):
     def step(self, action: Any):
         obs, reward, terminated, truncated, info = self.env.step(action)
         components = {
-            "progress": 0.0, "checkpoint": 0.0, "score": 0.0,
+            "progress": 0.0, "checkpoint": 0.0, "zone": 0.0, "score": 0.0,
             "coin": 0.0, "kill": 0.0, "finish": 0.0, "level": 0.0,
             "life": 0.0, "time": -self.time_penalty, "stall": 0.0,
             "action": 0.0, "death": 0.0,
@@ -207,6 +220,7 @@ class SmartMarioReward(gym.Wrapper):
             while self._max_x >= self._next_checkpoint:
                 components["checkpoint"] += self.checkpoint_bonus
                 self._next_checkpoint += self.checkpoint_width
+            components["zone"] = self._zone_reward()
             components["finish"] = self._finish_reward()
             self._last_x = x_pos
 
@@ -263,12 +277,39 @@ class SmartMarioReward(gym.Wrapper):
         if self._last_score is not None:
             score_delta = max(0.0, score - self._last_score)
             score_reward = self.score_scale * score_delta
+            score_reward = self._apply_reward_cap(
+                score_reward,
+                "_score_reward_total",
+                self.max_score_reward,
+            )
             if self.kill_bonus > 0.0:
                 kill_score = score_delta - (coin_delta * 200)
                 if kill_score >= 100:
                     kill_reward = self.kill_bonus
+                    kill_reward = self._apply_reward_cap(
+                        kill_reward,
+                        "_kill_reward_total",
+                        self.max_kill_reward,
+                    )
         self._last_score = score
         return score_reward, kill_reward
+
+    def _apply_reward_cap(
+        self,
+        reward: float,
+        total_attr: str,
+        cap: float | None,
+    ) -> float:
+        if reward <= 0.0:
+            return 0.0
+        current_total = float(getattr(self, total_attr))
+        if cap is None:
+            setattr(self, total_attr, current_total + reward)
+            return reward
+        remaining = max(0.0, cap - current_total)
+        capped_reward = min(reward, remaining)
+        setattr(self, total_attr, current_total + capped_reward)
+        return capped_reward
 
     def _coin_reward(self, info: dict[str, Any]) -> float:
         if "coins" not in info:
@@ -317,6 +358,16 @@ class SmartMarioReward(gym.Wrapper):
         if not self._flag_zone_awarded and self._max_x >= self.flag_zone_x:
             reward += self.flag_bonus
             self._flag_zone_awarded = True
+        return reward
+
+    def _zone_reward(self) -> float:
+        reward = 0.0
+        while self._zone_index < len(self.zone_bonuses):
+            x_pos, bonus = self.zone_bonuses[self._zone_index]
+            if self._max_x < x_pos:
+                break
+            reward += bonus
+            self._zone_index += 1
         return reward
 
     def _action_reward(self, info: dict[str, Any]) -> float:

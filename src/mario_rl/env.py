@@ -71,7 +71,7 @@ def make_mario_env(
         overriding per-level defaults from :mod:`mario_rl.levels`.
     """
     # ------------------------------------------------------------------ base
-    obs_type = retro.Observations.RAM if obs_mode == "ram" else retro.Observations.SCREEN
+    obs_type = retro.Observations.RAM if obs_mode == "ram" else retro.Observations.IMAGE
     env = retro.make(
         game=game,
         state=state,

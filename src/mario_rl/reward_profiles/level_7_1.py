@@ -46,11 +46,13 @@ LEVEL7_1: dict[str, object] = {
     "death_penalty": 200.0,
     "life_loss_penalty": 0.0,
     "level_bonus": 0.0,
-    # Pacing: tighter stall pressure so the agent can not park near a cannon.
+    # Pacing: 7-1 requires waiting out Hammer Bro patterns and Bullet Bill
+    # volleys — patience is correct play, not stalling.  Widen the window and
+    # cap the penalty so brief waits do not dominate the reward signal.
     "time_penalty": 0.012,
-    "stall_penalty": 0.04,
-    "stall_window": 16,
-    "max_stall_penalty": 1.5,
+    "stall_penalty": 0.02,
+    "stall_window": 48,
+    "max_stall_penalty": 0.5,
     # Action quality: 7-1 needs long held-A jumps over Hammer Bros, so widen
     # the repeated-jump window and shrink the per-jump cost.
     "jump_penalty": 0.004,

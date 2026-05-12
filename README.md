@@ -36,6 +36,7 @@ contain large generated artifacts.
 | Rewards | Uses dense smart rewards with map-specific profiles. |
 | Training | Provides local and Colab commands with checkpoint auto-resume. |
 | Evaluation | Records videos and prints episode-level reward component totals. |
+| NeSLE A100 | Benchmarks the GPU-native NeSLE emulator and native PPO path on A100. |
 
 ## Quick Start
 
@@ -109,6 +110,27 @@ to the next level, the episode ends and resets back to the original state.  For
 example, `--state Level7-1` repeatedly trains only on Level 7-1 unless
 `--no-flag-lock` is used.
 
+## NeSLE A100 Benchmarking
+
+For the GPU-native NeSLE campaign, use the `mario-nesle-bench` CLI.  It runs
+preflight checks, no-copy CUDA env throughput sweeps, short native-PPO sweeps,
+and stress runs while writing JSON/CSV/report artifacts.
+
+The ready-to-run Colab notebook is
+[`notebooks/nesle_a100_benchmark.ipynb`](notebooks/nesle_a100_benchmark.ipynb).
+
+```bash
+mario-nesle-bench all \
+  --setup \
+  --run-correctness \
+  --cuda-arch sm_80 \
+  --rom "roms/Super Mario Bros. (World).nes" \
+  --snapshot ../../docs/data/smb_level1_1.state \
+  --output-dir /content/drive/MyDrive/mario_rl/nesle_a100
+```
+
+See [NeSLE A100 Benchmark Campaign](docs/NESLE_A100.md).
+
 ## Evaluate
 
 ```bash
@@ -144,6 +166,7 @@ docs/
 |-- ARCHITECTURE.md     # How the system is wired internally
 |-- ACTIONS.md          # Curated Mario action space
 |-- REWARD.md           # Reward shaping and per-level profiles
+|-- NESLE_A100.md       # NeSLE limits-first A100 benchmark campaign
 |-- COLAB.md            # Colab training guide
 `-- PC_SETUP.md         # Local/WSL setup guide
 ```
@@ -156,5 +179,7 @@ docs/
   system.
 - [Action Space](docs/ACTIONS.md): the discrete controller actions used for
   training.
+- [NeSLE A100 Benchmark Campaign](docs/NESLE_A100.md): limits-first benchmark
+  and native-PPO workflow for A100.
 - [Colab Guide](docs/COLAB.md): recommended notebook/runtime workflow.
 - [PC Setup](docs/PC_SETUP.md): local Windows/WSL/Linux setup and commands.

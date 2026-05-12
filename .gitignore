@@ -8,6 +8,7 @@ __pycache__/
 models/
 runs/
 videos/
+benchmarks/results/
 *.zip
 *.pkl
 *.mp4

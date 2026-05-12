@@ -22,6 +22,7 @@ mario-doctor = "mario_rl.scripts.doctor:main"
 mario-smoke = "mario_rl.scripts.smoke:main"
 mario-train = "mario_rl.scripts.train_ppo:main"
 mario-eval = "mario_rl.scripts.evaluate:main"
+mario-nesle-bench = "mario_rl.nesle_bench:main"
 
 [build-system]
 requires = ["hatchling"]

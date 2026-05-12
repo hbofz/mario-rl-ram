@@ -159,8 +159,9 @@ src/mario_rl/
 `-- scripts/            # mario-doctor, mario-smoke, mario-train, mario-eval
 
 notebooks/
-|-- ram_training.ipynb  # Colab notebook for RAM + MLP PPO
-`-- cnn_training.ipynb  # Colab notebook for pixels + CNN PPO
+|-- ram_training.ipynb          # Colab notebook for RAM + MLP PPO
+|-- cnn_training.ipynb          # Colab notebook for pixels + CNN PPO
+`-- cnn_lstm_7_1_training.ipynb # Colab notebook for RecurrentPPO (CNN+LSTM) on World 7-1
 
 docs/
 |-- ARCHITECTURE.md     # How the system is wired internally

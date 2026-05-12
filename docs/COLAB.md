@@ -185,16 +185,27 @@ For a submission, useful videos are: random baseline, early checkpoint,
 mid-training checkpoint, final deterministic rollout, and final stochastic
 rollouts.
 
-## 10. Optional Recurrent PPO
+## 10. Optional Recurrent PPO (CNN+LSTM)
+
+RecurrentPPO with a pixel observation uses a CNN+LSTM policy (`CnnLstmPolicy`),
+which gives the agent memory across frames.  This is useful for levels like
+World 7-1 where timing and pattern recognition matter more than a single frame.
 
 ```bash
 mario-train \
   --algo recurrent-ppo \
-  --obs-mode ram \
-  --state Level1-1 \
+  --obs-mode pixel \
+  --state Level7-1 \
   --reward-mode smart \
   --timesteps 5000000 \
   --n-envs 8 \
-  --run-name recurrent-ram-1-1 \
-  --device cpu
+  --n-steps 128 \
+  --batch-size 512 \
+  --run-name cnn-7-1 \
+  --model-dir /content/drive/MyDrive/mario_rl/models \
+  --log-dir /content/drive/MyDrive/mario_rl/runs \
+  --device auto
 ```
+
+For RAM-based recurrent runs, swap `--obs-mode pixel` for `--obs-mode ram`
+and the policy will use `MlpLstmPolicy` instead.

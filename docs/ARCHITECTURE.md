@@ -126,7 +126,8 @@ runs/<run-name>/       # TensorBoard logs
 videos/<run-name>/     # evaluation videos
 ```
 
-These directories are intentionally ignored by Git.
+Checkpoint models and recorded videos are committed to the repository.
+The `runs/` TensorBoard log directory is excluded from Git.
 
 ## Evaluation Metrics
 

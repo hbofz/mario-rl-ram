@@ -1,0 +1,107 @@
+Teaching an AI to Play Super Mario Bros.: A Reinforcement Learning Project
+Hamzah Azzam
+AI Final Project
+
+
+INTRODUCTION
+
+For my final project I decided to teach a reinforcement learning agent to play Super Mario Bros. on the original NES. The idea felt like the right mix of everything we covered in class -- states, actions, rewards, policy learning -- applied to something that is actually fun to watch and genuinely hard to get right. I had no idea when I started how many rabbit holes I was going to fall into, but looking back I think I learned more from the messy parts than from the parts that worked.
+
+
+WHERE IT STARTED
+
+My first instinct was to use a popular Python library called gym-super-mario-bros, which wraps the NES emulator and gives you a Gym-compatible Mario environment that a lot of blog posts and YouTube tutorials use. I got it installed, ran a few steps, and immediately hit problems. The library has not been actively maintained, and the version that works with modern PyTorch and Stable-Baselines3 is a different version than the one that installs by default. Getting the right combination of gym-super-mario-bros, gym, numpy, and torch to cooperate without one of them breaking the others took a lot longer than I expected.
+
+After spending real time on that, I switched to Stable-Retro. Stable-Retro is a fork of OpenAI Retro maintained by the Farama Foundation, the same group behind Gymnasium. It runs the actual NES ROM through an emulator and exposes both the raw game screen and the full RAM state as observations. This turned out to be a better fit for what I wanted to do because it gave me two completely different observation pipelines to experiment with: one that reads directly from RAM bytes, and one that reads from the game screen the same way a human does. That dual-pipeline idea became the whole backbone of the project.
+
+Version compatibility was still a pain even after switching. The Stable-Retro build for Apple Silicon Macs is a separate package from the one for Linux and Windows, they have slightly different version numbers, and they do not both work with the same version of Stable-Baselines3. I ended up pinning every dependency version in pyproject.toml and using the uv package manager to make sure the environment reproduced cleanly. On Apple Silicon the project uses stable-retro-apple-silicon 0.9.9.post2, while on everything else it uses stable-retro 1.0.0. This was genuinely annoying to figure out but it meant training on Colab (Linux) and testing locally on my Mac actually worked the same way.
+
+
+THE CPU BOTTLENECK
+
+One of the biggest technical headaches of the whole project was something I did not expect at all: the NES emulator is CPU-bound, not GPU-bound. When I started training pixel-based agents on Google Colab, I assumed a GPU runtime would be significantly faster because neural network forward and backward passes happen on the GPU. That is true, but the emulator itself -- actually running the game frame by frame and producing observations -- runs entirely on CPU. The GPU sits mostly idle while the CPU grinds through emulator steps. This made Colab training much slower than I had hoped, and I almost went down a completely different path.
+
+At one point I started looking into whether I could build a GPU-accelerated Mario emulator. There are projects that move the whole simulation to the GPU so you can run thousands of environments in parallel on tensor operations. I read through some of that work and started sketching out what it would take. It was extremely difficult and I decided not to finish it. That said, it is something I genuinely want to come back to. The performance gap is real and it would make experiments like this dramatically faster to run.
+
+The practical workaround was running many parallel environments on CPU using SubprocVecEnv from Stable-Baselines3. For RAM training I used 16 parallel environments and for pixel training I used 8, since the pixel pipeline is heavier per environment. This parallelism is how you get reasonable throughput from a CPU-bound emulator: you run many copies of the game at once and collect experience from all of them simultaneously before each policy update.
+
+
+TWO OBSERVATION PIPELINES
+
+The project ended up with two completely different ways to feed information to the agent.
+
+The first is the RAM pipeline. Stable-Retro can expose the raw memory of the NES as a 2048-byte vector. I normalized those bytes to float32 values in the range 0 to 1 and fed the vector to a multilayer perceptron policy. The idea is that everything about the game -- Mario's position, velocity, enemy positions, timer, coins, lives -- lives somewhere in those RAM bytes. If the agent can learn which bytes matter and how they relate to each other, it has a very compact and information-dense view of the game. I trained this agent on World 1-1 for 30 million steps, and it actually learned to complete the level consistently.
+
+The second is the pixel pipeline. Instead of RAM, this pipeline takes the game's video output, converts it to grayscale, resizes it to 84 by 84 pixels, and stacks four consecutive frames together. The stacking is important because a single frame has no motion information -- you cannot tell which direction enemies are moving from one frame alone. Four stacked frames give the agent enough temporal context to infer velocities. This observation goes to a CNN policy using the NatureCNN architecture from Stable-Baselines3, which was originally designed for Atari games. The pixel pipeline is slower per step but closer to how a human actually experiences the game.
+
+One result I found interesting was that the CNN agent on World 1-1 trained to 5 million steps performed better than the RAM agent trained to 26 million steps. That surprised me at first. My best explanation is that the RAM vector includes a lot of bytes that are basically noise for the task -- memory regions that track things unrelated to playing the game. The MLP policy has to figure out which of those 2048 values to pay attention to and which to ignore, with no built-in structure to help. The CNN, on the other hand, gets a representation of the game that has natural spatial structure. Nearby pixels in the frame are related to each other in ways that convolution naturally exploits. The CNN may simply be getting a cleaner, more useful signal with less noise to filter out.
+
+
+REWARD DESIGN
+
+The default reward in Stable-Retro's Mario integration rewards the agent based on the low byte of the horizontal scroll register. That teaches "move right" at a basic level, but it breaks down pretty quickly. The scroll counter wraps around, it does not capture new territory explored, it does not care about coins or enemies, and it gives no signal at all about actually finishing the level.
+
+I built a custom reward system from scratch called SmartMarioReward. It has a lot of components because Mario gameplay involves a lot of different things happening at once. The main signal is still forward progress, but on top of that the agent gets one-time checkpoint bonuses every 128 pixels of new territory, bonuses for coins collected, bonuses inferred from score jumps that are probably enemy stomps, a large bonus for reaching the finish zone and the flagpole, and penalties for dying, for standing still too long, and for spamming certain actions pointlessly.
+
+The penalty for doing nothing -- the stall penalty -- turned out to be important. Without it, agents would sometimes find a spot where they were getting a small coin or score reward from something repeating and just stay there. Adding a small increasing cost for not making forward progress fixed that.
+
+I also built a curated action space. The raw NES controller is 9 buttons, which gives you an enormous number of button combinations, most of which are useless or actively bad (LEFT and RIGHT at the same time, pressing START during gameplay, and so on). I reduced this to 11 carefully chosen discrete actions: right, right-run, right-jump, right-run-jump, jump, run-jump, left, left-jump, down, right-down, and no-op. This made the policy's job easier because it never had to learn to avoid the nonsense actions -- they simply do not exist.
+
+The reward profiles are different per level. World 7-1 is a Bullet Bill cannon and Hammer Bros. gauntlet, and it has a problem that World 1-1 does not: Bullet Bills spawn infinitely from the cannons. If the agent figures out that it can stand near a cannon and collect enemy kill rewards forever, it will never actually move forward. So the World 7-1 profile caps the total score and kill reward per episode, adds one-time section bonuses for clearing major landmarks on the map, and makes the flag completion bonus much larger (400 points vs 100 for World 1-1) so that actually finishing is worth far more than farming kills. The death penalty is also much steeper on 7-1 -- 200 vs 75 on 1-1 -- because the level is harder and every death should feel like a real setback.
+
+
+EPISODE STRUCTURE
+
+One design decision that took a few iterations to get right was how to structure episodes. By default, Stable-Retro only ends an episode when Mario loses all his lives. That is a very long, noisy feedback loop for PPO to learn from. I added two wrappers that change this.
+
+SingleLifeEpisode ends the episode the moment Mario loses one life. This gives the policy a cleaner, faster signal: every episode is either a successful run or a death, not a messy combination of both. PPO learns much faster this way.
+
+FlagLockEpisode ends the episode when Mario completes the level and the game transitions to the next stage. This is how training stays locked to a specific level. Without it, training on Level 7-1 would continue into Level 7-2 after a completion, and the agent would start seeing observations from a completely different level without any indication that the context changed. With the flag lock, every episode starts at the beginning of the target level and ends either with a death or a completion.
+
+Detecting the level transition turned out to be harder than I expected. Stable-Retro exposes level number bytes in RAM, and I track them across steps. When those bytes change, the level changed. This is more robust than trying to guess from Mario's x-position, which was what an earlier version of the code did.
+
+
+THE RECURRENT PPO EXPERIMENT
+
+After getting both the RAM and CNN pipelines working on World 1-1, I wanted to try something harder. World 7-1 is considered one of the tougher levels in the original game because of the Bullet Bills and the Hammer Bros. pattern you have to time carefully. I also wanted to give the agent memory, because some timing decisions on 7-1 depend on things that happened several seconds ago.
+
+Recurrent PPO adds an LSTM layer to the policy. Instead of just seeing the current observation and picking an action, the agent carries a hidden state between steps, so it can remember things like "a Hammer Bro was throwing left two steps ago" or "I just cleared the cannon section." Combined with the pixel pipeline, this gives a CnnLstmPolicy that sees frames and remembers context.
+
+Training this on 7-1 is hard. The agent at about 5.5 million steps makes it roughly halfway through the level consistently. It has clearly learned to move right, avoid the first wave of Bullet Bills, and deal with some of the early obstacles. The Hammer Bros. section in the middle is where it still struggles. Getting through that requires precise timing and a jump pattern that is hard to discover through random exploration alone. With more training time and potentially some additional reward shaping for the Hammer Bros. section specifically, I think it could go further, but 5.5 million steps on a CPU-bound emulator in Colab was already a lot of compute time.
+
+
+WHAT I WOULD DO DIFFERENTLY
+
+The GPU emulator idea is the biggest thing I wish I had more time to pursue. Training on CPU works but it is slow, and the step count is artificially limited by how long you are willing to wait. A proper GPU-parallel environment would let you run 512 or 1024 environments simultaneously instead of 16, which would compress days of training into hours.
+
+I also think the RAM observation vector deserves more investigation. Right now the entire 2048-byte RAM is fed in as-is. A better approach would be to identify which RAM addresses correspond to meaningful game state -- Mario's x/y position, velocity, enemy slots, timer -- and build a structured observation from just those. The Stable-Retro integration for Mario already exposes some of these as named info variables. Feeding the agent a clean, meaningful 30-dimensional vector instead of a noisy 2048-dimensional one might explain the gap I saw between the RAM and CNN performance.
+
+Finally, I would invest more time in reward tuning for World 7-1. The current profile works reasonably well but it is based on a lot of guesswork about where the major landmarks are on the map. Running the evaluator and watching the reward component breakdowns would let you tune these more precisely.
+
+
+CONCLUSION
+
+This project ended up being much more of an engineering challenge than I expected. The interesting AI concepts -- PPO, reward shaping, observation design -- are real, but half the work was getting the software stack to cooperate, finding a version combination that actually ran, dealing with the CPU bottleneck, and figuring out why the agent was doing something weird. I think that is probably realistic for applied RL work. The theory is relatively clean but the systems are messy.
+
+What I am most happy with is that the RAM agent actually learned to beat World 1-1 consistently, and the CNN agent on World 1-1 learned to do it better with fewer steps. Watching the pixel agent navigate the level -- it discovered on its own when to run, when to jump, and how to clear gaps -- is genuinely satisfying given how much work went into building the environment around it.
+
+
+TECHNICAL SUMMARY
+
+Library stack: Stable-Retro (ROM emulation), Gymnasium (environment API), Stable-Baselines3 + SB3-Contrib (PPO and RecurrentPPO), PyTorch (neural networks)
+
+Observation modes:
+  - RAM: 2048-byte NES memory vector, normalized to float32, MLP policy (256x256)
+  - Pixel: 84x84 grayscale, 4-frame stack, CNN policy (NatureCNN)
+  - Pixel+LSTM: same pixel pipeline with CnnLstmPolicy for memory
+
+Action space: 11 curated discrete actions (MarioActionSpace wrapper)
+
+Reward: SmartMarioReward with per-level profiles (level_1_1.py, level_7_1.py)
+
+Training:
+  - RAM agent, World 1-1: 30 million steps, 16 parallel envs -- completes level consistently
+  - CNN agent, World 1-1: 5 million steps, 8 parallel envs -- outperforms 26M-step RAM agent
+  - RecurrentPPO CNN+LSTM, World 7-1: 5.5 million steps -- reaches approximately halfway
+
+Infrastructure: Google Colab (GPU runtime for CNN, CPU for RAM), checkpoints auto-resume on disconnect, TensorBoard logging, video recording via Gymnasium RecordVideo

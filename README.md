@@ -74,42 +74,18 @@ gap that random exploration almost never stumbles into.
 
 ## What didn't work
 
-**gym-super-mario-bros.** The obvious starting point, and I lost real time to it
-before switching. The version that installs by default doesn't cooperate with
-current Stable-Baselines3, and the version that does wants an older gym. I
-switched to Stable-Retro, which exposes both the framebuffer and the RAM from
-the same emulator, and got the dual-pipeline idea out of the bargain.
-
-**Assuming a GPU would help.** I moved pixel training to a Colab GPU runtime and
-it barely moved. The emulator is the bottleneck and it runs on CPU, one frame at
-a time, while the GPU waits for observations. The actual fix was 8 to 16 parallel
-environments through `SubprocVecEnv`. I looked into porting the emulator to the
-GPU so thousands of environments could step as tensor ops, sketched it out, and
-decided it was its own project. `docs/NESLE_A100.md` is how far I got.
-
-**Mario never being punished for dying.** For a stretch of training, the death
-penalty was silently doing nothing, because I had ordered the wrappers so that
-`SingleLifeEpisode` ended the episode before the reward wrapper could observe
-the death. The agent trained fine and learned to be recklessly suicidal. Fixed
-in `fdcc031` by reordering the wrapper stack.
-
-**Farming Bullet Bills.** The 7-1 cannons spawn enemies forever. Give the agent
-a per-kill reward and it discovers it can park next to a cannon and collect
-income indefinitely, which scores well and goes nowhere. The 7-1 profile caps
-total kill and score reward per episode (`max_kill_reward`, `max_score_reward`)
-and puts most of the payout on the actual flag: 400 points, against 100 on 1-1.
-
-**Stalling, and then over-punishing stalling.** Adding a stall penalty stopped
-the parking behavior. But 7-1 genuinely requires standing still to wait out a
-Hammer Bro pattern, and the first penalty was aggressive enough to train that
-patience out. The 7-1 profile widens the window to 48 steps and caps the total
-penalty, so waiting on purpose is affordable and idling still isn't.
-
-**Guessing where the flag is.** The finish bonus originally fired at a
-hardcoded x-position. On 7-1 that meant the agent could collect most of the
-completion bonus without finishing the hardest section. Now the level transition
-is detected by watching the RAM level bytes change, which is what actually
-happened rather than what I estimated should have happened.
+- **A GPU barely helped.** The emulator is the bottleneck and it runs on CPU.
+  The fix was 16 parallel environments, not a faster card.
+- **Mario went unpunished for dying** for a whole stretch of training, because
+  the episode ended before the reward wrapper could see the death. He learned to
+  be suicidal. Fixed in `fdcc031`.
+- **Bullet Bills are farmable.** The 7-1 cannons spawn forever, so the agent
+  parked next to one and collected kill rewards instead of finishing. Capped
+  per-episode kill reward and moved the payout to the flag.
+- **Then I over-punished stalling,** which trained out the waiting that 7-1
+  actually requires against Hammer Bros. Widened the window to 48 steps.
+- **Guessing the flag's x-position** let the agent claim the completion bonus
+  without clearing the hard section. Now it watches the RAM level bytes instead.
 
 ## Setup
 

@@ -13,3 +13,9 @@ benchmarks/results/
 *.pkl
 *.mp4
 *.bk2
+
+# ROMs are copyrighted; supply your own.
+*.nes
+*.sfc
+*.smc
+!roms/.gitkeep

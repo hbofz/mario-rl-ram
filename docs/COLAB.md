@@ -45,13 +45,15 @@ Restart the runtime after installing if Colab has dependency conflicts loaded.
 
 ## 4. Import The ROM
 
-Import the ROM from the repo's `roms/` folder:
+The ROM is not included in the repo. Upload your own `.nes` file to
+`/content/mario-rl-ram/roms/`, then import it:
 
 ```bash
 python -m stable_retro.import /content/mario-rl-ram/roms/
 ```
 
-If you keep your ROM in Drive instead, replace the path with
+Keeping the ROM in Drive is easier across sessions, since the Colab filesystem
+is wiped on disconnect. In that case use
 `/content/drive/MyDrive/mario_rl/roms/`.
 
 Verify setup:
